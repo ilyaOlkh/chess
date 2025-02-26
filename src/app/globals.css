@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    --light-cell: #e8edf9;
+    --dark-cell: #b7c0d8;
+    --light-text: #e8edf9;
+    --dark-text: #b7c0d8;
+}
+
+.font-chess-coordinate {
+    font-family: var(--font-roboto);
+    font-weight: 500;
+    font-size: 14px;
+}
