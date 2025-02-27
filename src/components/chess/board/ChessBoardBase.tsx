@@ -1,66 +1,185 @@
-import React from "react";
-import { ChessBoardBaseProps } from "@/types/chess";
-import { chessBoard } from "@/constants/chess";
-import { cn } from "@/utilities/cn";
+"use client";
 
-const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({ className }) => {
-    // Функция для определения цвета клетки
+import React from "react";
+import { useChessContext } from "@/context/ChessContext";
+import { ChessBoardBaseProps, CellPosition } from "@/types/chess-board";
+import { chessBoard } from "@/constants/chess-board";
+import { cn } from "@/utilities/cn";
+import ChessPiece from "@/components/chess/piece/ChessPiece";
+import { ChessPiece as ChessPieceType } from "@/types/chess-game";
+import { positionToAlgebraic } from "@/utilities/chess";
+
+const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
+    const { state, selectPiece, makeMove, animationComplete } =
+        useChessContext();
+
     const getCellColor = (row: number, col: number): string => {
         return (row + col) % 2 === 0 ? "bg-lightCell" : "bg-darkCell";
     };
 
-    // Функция для определения цвета текста (противоположного цвету клетки)
     const getTextColor = (row: number, col: number): string => {
         return (row + col) % 2 === 0 ? "text-darkText" : "text-lightText";
     };
 
-    return (
-        <div className={cn(`w-full max-w-md mx-auto aspect-square`, className)}>
-            <div
-                className={
-                    "grid grid-cols-8 border border-gray-300 rounded shadow-md"
+    const handlePieceClick = (piece: ChessPieceType) => {
+        selectPiece(piece);
+    };
+
+    const handleCellClick = (position: CellPosition) => {
+        if (state.selectedPiece) {
+            const from = positionToAlgebraic(state.selectedPiece.position);
+            const to = positionToAlgebraic(position);
+
+            if (state.validMoves.includes(to)) {
+                makeMove(from, to);
+            } else {
+                const pieceAtPosition = state.board[position.row][position.col];
+                if (
+                    pieceAtPosition &&
+                    pieceAtPosition.color === state.currentTurn
+                ) {
+                    selectPiece(pieceAtPosition);
+                } else {
+                    selectPiece(null);
                 }
-            >
+            }
+        } else {
+            const pieceAtPosition = state.board[position.row][position.col];
+            if (
+                pieceAtPosition &&
+                pieceAtPosition.color === state.currentTurn
+            ) {
+                selectPiece(pieceAtPosition);
+            }
+        }
+    };
+
+    const handleAnimationComplete = (piece: ChessPieceType) => {
+        const pieceKey = `${piece.type}${piece.color}${positionToAlgebraic(
+            piece.position
+        )}`;
+        animationComplete(pieceKey);
+    };
+
+    const renderMoveHighlights = () => {
+        if (!state.selectedPiece || !state.validMoves.length) return null;
+
+        return state.validMoves.map((moveNotation) => {
+            const col = moveNotation.charCodeAt(0) - "a".charCodeAt(0);
+            const row = 8 - parseInt(moveNotation[1]);
+
+            return (
+                <div
+                    key={`highlight-${moveNotation}`}
+                    className="absolute rounded-full bg-highlight pointer-events-none"
+                    style={{
+                        width: "5%",
+                        height: "5%",
+                        left: `${col * 12.5 + 3.75}%`,
+                        top: `${row * 12.5 + 3.75}%`,
+                        zIndex: 5,
+                    }}
+                />
+            );
+        });
+    };
+
+    return (
+        <div
+            className={cn(
+                `w-full max-w-md mx-auto aspect-square relative`,
+                className
+            )}
+        >
+            <div className="grid grid-cols-8 border border-gray-300 rounded shadow-md relative">
                 {chessBoard.ranks
                     .slice()
                     .reverse()
                     .map((rank, rowIndex) =>
-                        chessBoard.files.map((file, colIndex) => (
-                            <div
-                                key={`${file}${rank}`}
-                                className={`${getCellColor(
-                                    rowIndex,
-                                    colIndex
-                                )} aspect-square relative`}
-                            >
-                                {rowIndex === chessBoard.size - 1 && (
-                                    <span
-                                        className={`select-none pointer-events-none absolute bottom-0 right-1 font-roboto font-medium text-sm ${getTextColor(
-                                            rowIndex,
-                                            colIndex
-                                        )}`}
-                                    >
-                                        {file}
-                                    </span>
-                                )}
+                        chessBoard.files.map((file, colIndex) => {
+                            const isSelectedCell = state.selectedPiece
+                                ? state.selectedPiece.position.row ===
+                                      rowIndex &&
+                                  state.selectedPiece.position.col === colIndex
+                                : false;
 
-                                {/* Цифры в левом столбце */}
-                                {colIndex === 0 && (
-                                    <span
-                                        className={`select-none pointer-events-none absolute top-0 left-1 font-roboto font-medium text-sm ${getTextColor(
+                            return (
+                                <div
+                                    key={`${file}${rank}`}
+                                    className={cn(
+                                        `${getCellColor(
                                             rowIndex,
                                             colIndex
-                                        )}`}
-                                    >
-                                        {rank}
-                                    </span>
-                                )}
-                            </div>
-                        ))
+                                        )} aspect-square relative`,
+                                        isSelectedCell &&
+                                            "bg-highlight bg-opacity-50"
+                                    )}
+                                    onClick={() =>
+                                        handleCellClick({
+                                            row: rowIndex,
+                                            col: colIndex,
+                                        })
+                                    }
+                                >
+                                    {rowIndex === chessBoard.size - 1 && (
+                                        <span
+                                            className={`select-none pointer-events-none absolute bottom-0 right-1 font-roboto font-medium text-sm ${getTextColor(
+                                                rowIndex,
+                                                colIndex
+                                            )}`}
+                                        >
+                                            {file}
+                                        </span>
+                                    )}
+                                    {colIndex === 0 && (
+                                        <span
+                                            className={`select-none pointer-events-none absolute top-0 left-1 font-roboto font-medium text-sm ${getTextColor(
+                                                rowIndex,
+                                                colIndex
+                                            )}`}
+                                        >
+                                            {rank}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })
                     )}
+
+                {renderMoveHighlights()}
+
+                {state.board.map((row, rowIndex) =>
+                    row.map((piece, colIndex) => {
+                        if (!piece) return null;
+
+                        const pieceKey = `${piece.type}${
+                            piece.color
+                        }${positionToAlgebraic(piece.position)}`;
+                        const isAnimating = state.animatingPieces.has(pieceKey);
+
+                        const isSelected = state.selectedPiece
+                            ? state.selectedPiece.position.row === rowIndex &&
+                              state.selectedPiece.position.col === colIndex
+                            : false;
+
+                        return (
+                            <ChessPiece
+                                key={pieceKey}
+                                piece={piece}
+                                position={{ row: rowIndex, col: colIndex }}
+                                isSelected={isSelected}
+                                isAnimating={isAnimating}
+                                onClick={handlePieceClick}
+                                onAnimationComplete={() =>
+                                    handleAnimationComplete(piece)
+                                }
+                            />
+                        );
+                    })
+                )}
             </div>
         </div>
     );
 };
 
-export default ChessBoardBase;
+export default ChessBoard;

@@ -13,6 +13,7 @@ export default {
                 darkCell: "var(--dark-cell)",
                 lightText: "var(--light-text)",
                 darkText: "var(--dark-text)",
+                highlight: "var(--highlight-color)",
             },
             fontFamily: {
                 roboto: ["var(--font-roboto)"],

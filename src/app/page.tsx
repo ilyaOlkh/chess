@@ -1,5 +1,5 @@
-import ChessBoardBase from "@/components/chess/board/ChessBoardBase";
+import ChessBoard from "@/components/chess/ChessBoard";
 
 export default function Home() {
-    return <ChessBoardBase />;
+    return <ChessBoard />;
 }
