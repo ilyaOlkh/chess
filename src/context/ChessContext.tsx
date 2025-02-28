@@ -220,23 +220,6 @@ const chessReducer = (
             };
         }
 
-        case "ANIMATION_COMPLETE": {
-            const pieceKey = action.payload;
-            const animatingPieces = new Map(state.animatingPieces);
-
-            animatingPieces.delete(pieceKey);
-
-            // Если все анимации завершены, очистить текущий ход
-            const currentMove =
-                animatingPieces.size === 0 ? null : state.currentMove;
-
-            return {
-                ...state,
-                animatingPieces,
-                currentMove,
-            };
-        }
-
         case "RESET_GAME": {
             return createInitialState();
         }
@@ -325,7 +308,6 @@ type ChessContextType = {
     resetGame: () => void;
     undoMove: () => void;
     setPosition: (fen: string) => void;
-    animationComplete: (pieceKey: string) => void;
 };
 
 const ChessContext = createContext<ChessContextType | undefined>(undefined);
@@ -359,10 +341,6 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
         dispatch({ type: "SET_POSITION", payload: fen });
     };
 
-    const animationComplete = (pieceKey: string) => {
-        dispatch({ type: "ANIMATION_COMPLETE", payload: pieceKey });
-    };
-
     return (
         <ChessContext.Provider
             value={{
@@ -372,7 +350,6 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
                 resetGame,
                 undoMove,
                 setPosition,
-                animationComplete,
             }}
         >
             {children}

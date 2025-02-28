@@ -152,10 +152,7 @@ const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
                     row.map((piece, colIndex) => {
                         if (!piece) return null;
 
-                        const pieceKey = `${piece.type}${
-                            piece.color
-                        }${positionToAlgebraic(piece.position)}`;
-                        const isAnimating = state.animatingPieces.has(pieceKey);
+                        const pieceKey = `${piece.type}${piece.color}${rowIndex}${colIndex}`;
 
                         const isSelected = state.selectedPiece
                             ? state.selectedPiece.position.row === rowIndex &&
@@ -168,11 +165,7 @@ const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
                                 piece={piece}
                                 position={{ row: rowIndex, col: colIndex }}
                                 isSelected={isSelected}
-                                isAnimating={isAnimating}
                                 onClick={handlePieceClick}
-                                onAnimationComplete={() =>
-                                    handleAnimationComplete(piece)
-                                }
                             />
                         );
                     })
