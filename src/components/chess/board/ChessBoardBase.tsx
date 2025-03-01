@@ -10,7 +10,7 @@ import { ChessPiece as ChessPieceType } from "@/types/chess-game";
 import { positionToAlgebraic } from "@/utilities/chess";
 
 const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
-    const { state, selectPiece, makeMove, animationComplete } =
+    const { state, selectPiece, makeMove } =
         useChessContext();
 
     const getCellColor = (row: number, col: number): string => {
@@ -22,14 +22,24 @@ const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
     };
 
     const handlePieceClick = (piece: ChessPieceType) => {
-        selectPiece(piece);
+        if (piece.color === state.currentTurn) {
+            selectPiece(piece);
+        } else {
+            if (state.selectedPiece) {
+                const from = positionToAlgebraic(state.selectedPiece.position);
+                const to = positionToAlgebraic(piece.position);
+                if (state.validMoves.includes(to)) {
+                    makeMove(from, to);
+                }
+            }
+        }
     };
 
     const handleCellClick = (position: CellPosition) => {
         if (state.selectedPiece) {
             const from = positionToAlgebraic(state.selectedPiece.position);
             const to = positionToAlgebraic(position);
-
+            console.log(to);
             if (state.validMoves.includes(to)) {
                 makeMove(from, to);
             } else {
@@ -52,13 +62,6 @@ const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
                 selectPiece(pieceAtPosition);
             }
         }
-    };
-
-    const handleAnimationComplete = (piece: ChessPieceType) => {
-        const pieceKey = `${piece.type}${piece.color}${positionToAlgebraic(
-            piece.position
-        )}`;
-        animationComplete(pieceKey);
     };
 
     const renderMoveHighlights = () => {

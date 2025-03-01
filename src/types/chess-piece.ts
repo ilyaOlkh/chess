@@ -6,7 +6,6 @@ export interface ChessPieceComponentProps {
     position: CellPosition;
     isSelected?: boolean;
     isAnimating?: boolean;
-    onAnimationComplete?: () => void;
     onClick?: (piece: ChessPiece) => void;
 }
 

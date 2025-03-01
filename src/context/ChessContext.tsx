@@ -102,6 +102,7 @@ const chessReducer = (
         }
 
         case "MAKE_MOVE": {
+            console.log("move");
             const { from, to } = action.payload;
 
             // Попытка сделать ход
