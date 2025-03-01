@@ -8,39 +8,36 @@ import { cn } from "@/utilities/cn";
 import ChessPiece from "@/components/chess/piece/ChessPiece";
 import { ChessPiece as ChessPieceType } from "@/types/chess-game";
 import { positionToAlgebraic } from "@/utilities/chess";
+import MoveHighlight from "../move-highlight/MoveHighlight";
+import {
+    getCellColor,
+    getTextColor,
+    isValidMove,
+} from "./ChessBoardBase.funcs";
 
 const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
-    const { state, selectPiece, makeMove } =
-        useChessContext();
+    const { state, selectPiece, makeMove } = useChessContext();
 
-    const getCellColor = (row: number, col: number): string => {
-        return (row + col) % 2 === 0 ? "bg-lightCell" : "bg-darkCell";
-    };
-
-    const getTextColor = (row: number, col: number): string => {
-        return (row + col) % 2 === 0 ? "text-darkText" : "text-lightText";
-    };
-
-    const handlePieceClick = (piece: ChessPieceType) => {
+    function handlePieceClick(piece: ChessPieceType) {
         if (piece.color === state.currentTurn) {
             selectPiece(piece);
         } else {
             if (state.selectedPiece) {
                 const from = positionToAlgebraic(state.selectedPiece.position);
                 const to = positionToAlgebraic(piece.position);
-                if (state.validMoves.includes(to)) {
+                if (isValidMove(state, to)) {
                     makeMove(from, to);
                 }
             }
         }
-    };
+    }
 
-    const handleCellClick = (position: CellPosition) => {
+    function handleCellClick(position: CellPosition) {
         if (state.selectedPiece) {
             const from = positionToAlgebraic(state.selectedPiece.position);
             const to = positionToAlgebraic(position);
-            console.log(to);
-            if (state.validMoves.includes(to)) {
+
+            if (isValidMove(state, to)) {
                 makeMove(from, to);
             } else {
                 const pieceAtPosition = state.board[position.row][position.col];
@@ -62,30 +59,7 @@ const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
                 selectPiece(pieceAtPosition);
             }
         }
-    };
-
-    const renderMoveHighlights = () => {
-        if (!state.selectedPiece || !state.validMoves.length) return null;
-
-        return state.validMoves.map((moveNotation) => {
-            const col = moveNotation.charCodeAt(0) - "a".charCodeAt(0);
-            const row = 8 - parseInt(moveNotation[1]);
-
-            return (
-                <div
-                    key={`highlight-${moveNotation}`}
-                    className="absolute rounded-full bg-highlight pointer-events-none"
-                    style={{
-                        width: "5%",
-                        height: "5%",
-                        left: `${col * 12.5 + 3.75}%`,
-                        top: `${row * 12.5 + 3.75}%`,
-                        zIndex: 5,
-                    }}
-                />
-            );
-        });
-    };
+    }
 
     return (
         <div
@@ -126,20 +100,20 @@ const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
                                 >
                                     {rowIndex === chessBoard.size - 1 && (
                                         <span
-                                            className={`select-none pointer-events-none absolute bottom-0 right-1 font-roboto font-medium text-sm ${getTextColor(
-                                                rowIndex,
-                                                colIndex
-                                            )}`}
+                                            className={cn(
+                                                "select-none pointer-events-none absolute bottom-0 right-1 font-roboto font-medium text-sm",
+                                                getTextColor(rowIndex, colIndex)
+                                            )}
                                         >
                                             {file}
                                         </span>
                                     )}
                                     {colIndex === 0 && (
                                         <span
-                                            className={`select-none pointer-events-none absolute top-0 left-1 font-roboto font-medium text-sm ${getTextColor(
-                                                rowIndex,
-                                                colIndex
-                                            )}`}
+                                            className={cn(
+                                                "select-none pointer-events-none absolute top-0 left-1 font-roboto font-medium text-sm",
+                                                getTextColor(rowIndex, colIndex)
+                                            )}
                                         >
                                             {rank}
                                         </span>
@@ -149,7 +123,16 @@ const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
                         })
                     )}
 
-                {renderMoveHighlights()}
+                {state.validMoves.length && state.selectedPiece ? (
+                    state.validMoves.map((move) => (
+                        <MoveHighlight
+                            key={`highlight-${move.to}`}
+                            move={move}
+                        />
+                    ))
+                ) : (
+                    <></>
+                )}
 
                 {state.board.map((row, rowIndex) =>
                     row.map((piece, colIndex) => {

@@ -6,7 +6,7 @@ import { CellPosition } from "@/types/chess-board";
 import Image from "next/image";
 import { useChessContext } from "@/context/ChessContext";
 import { ChessMove, ChessPiece as ChessPieceType } from "@/types/chess-game";
-import { chessBoard } from "@/constants/chess-board";
+import { cellSize } from "@/constants/chess-board";
 
 const ChessPiece: React.FC<ChessPieceComponentProps> = ({
     piece,
@@ -36,8 +36,6 @@ const ChessPiece: React.FC<ChessPieceComponentProps> = ({
             onClick(piece);
         }
     };
-
-    const cellSize = 100 / chessBoard.size;
 
     const positionStyle: React.CSSProperties = {
         left: `${renderPosition.col * cellSize}%`,

@@ -11,6 +11,7 @@ import {
     ChessPiece,
     PieceColor,
 } from "@/types/chess-game";
+import { ValidMove } from "@/types/chess-move";
 import { chessGameConstants } from "@/constants/chess-game";
 import { algebraicToPosition, positionToAlgebraic } from "@/utilities/chess";
 
@@ -22,13 +23,11 @@ const getMoveType = (flags: string): MoveType => {
     return "normal";
 };
 
-// Преобразование доски chess.js в наш формат
 const parseBoard = (chess: Chess): (ChessPiece | null)[][] => {
     const board = Array(8)
         .fill(null)
         .map(() => Array(8).fill(null));
 
-    // Chess.js board() возвращает двумерный массив с фигурами
     const chessBoard = chess.board();
 
     for (let row = 0; row < 8; row++) {
@@ -47,7 +46,6 @@ const parseBoard = (chess: Chess): (ChessPiece | null)[][] => {
     return board;
 };
 
-// Начальное состояние
 const createInitialState = (): ChessGameState => {
     const chess = new Chess();
 
@@ -70,7 +68,6 @@ const createInitialState = (): ChessGameState => {
     };
 };
 
-// Редьюсер
 const chessReducer = (
     state: ChessGameState,
     action: ChessAction
@@ -81,18 +78,20 @@ const chessReducer = (
         case "SELECT_PIECE": {
             const piece = action.payload;
 
-            // Если фигура не выбрана или это не ход текущего игрока, вернуть текущее состояние
             if (!piece || piece.color !== state.currentTurn) {
                 return { ...state, selectedPiece: null, validMoves: [] };
             }
 
             const position = positionToAlgebraic(piece.position);
-            const moves = chess.moves({
+            const moves: Move[] = chess.moves({
                 square: position as Square,
                 verbose: true,
-            }) as Move[];
+            });
 
-            const validMoves = moves.map((move) => move.to);
+            const validMoves: ValidMove[] = moves.map((move) => ({
+                to: move.to,
+                isCapture: Boolean(move.captured),
+            }));
 
             return {
                 ...state,
@@ -105,14 +104,12 @@ const chessReducer = (
             console.log("move");
             const { from, to } = action.payload;
 
-            // Попытка сделать ход
             const moveDetails = chess.move({ from, to });
 
             if (!moveDetails) {
                 return state;
             }
 
-            // Создание массива перемещений
             const movements: PieceMovement[] = [
                 {
                     pieceType: moveDetails.piece,
@@ -123,13 +120,10 @@ const chessReducer = (
                 },
             ];
 
-            // Обработка особых случаев, например рокировки
             const moveType = getMoveType(moveDetails.flags);
 
-            // Добавление перемещения ладьи при рокировке
             if (moveType === "castling") {
                 if (moveDetails.flags.includes("k")) {
-                    // Короткая рокировка
                     const rookFromSquare: Square = (
                         moveDetails.color === "w" ? "h1" : "h8"
                     ) as Square;
@@ -144,7 +138,6 @@ const chessReducer = (
                         animationDuration: chessGameConstants.animationDuration,
                     });
                 } else {
-                    // Длинная рокировка
                     const rookFromSquare: Square = (
                         moveDetails.color === "w" ? "a1" : "a8"
                     ) as Square;
@@ -161,14 +154,12 @@ const chessReducer = (
                 }
             }
 
-            // Создание объекта хода
             const newMove: ChessMove = {
                 type: moveType,
                 movements,
                 notation: moveDetails.san,
             };
 
-            // Обработка взятых фигур
             const capturedPieces = { ...state.capturedPieces };
             if (moveDetails.captured) {
                 const capturedColor: PieceColor =
@@ -196,7 +187,6 @@ const chessReducer = (
                 ];
             }
 
-            // Отметка анимируемых фигур
             const animatingPieces = new Map<string, boolean>();
             movements.forEach((movement) => {
                 const fromPosition = positionToAlgebraic(movement.from);
@@ -362,7 +352,7 @@ export const useChessContext = () => {
     const context = useContext(ChessContext);
     if (context === undefined) {
         throw new Error(
-            "useChessContext должен использоваться внутри ChessProvider"
+            "useEnhancedChessContext must be used within EnhancedChessProvider"
         );
     }
     return context;

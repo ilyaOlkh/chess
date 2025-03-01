@@ -1,5 +1,6 @@
 import { Square } from "chess.js";
 import { CellPosition } from "./chess-board";
+import { ValidMove } from "./chess-move";
 
 export type PieceType = "p" | "n" | "b" | "r" | "q" | "k";
 export type PieceColor = "w" | "b";
@@ -40,7 +41,7 @@ export interface ChessGameState {
     isCheckmate: boolean;
     isDraw: boolean;
     selectedPiece: ChessPiece | null;
-    validMoves: string[];
+    validMoves: ValidMove[];
     capturedPieces: {
         w: ChessPiece[];
         b: ChessPiece[];

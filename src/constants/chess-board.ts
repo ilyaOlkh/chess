@@ -10,3 +10,5 @@ export const chessText = {
     fileLabel: "Файл",
     rankLabel: "Ряд",
 };
+
+export const cellSize = 100 / chessBoard.size;
