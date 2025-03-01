@@ -10,10 +10,13 @@ import {
     MoveType,
     ChessPiece,
     PieceColor,
+    PieceType,
 } from "@/types/chess-game";
 import { ValidMove } from "@/types/chess-move";
 import { chessGameConstants } from "@/constants/chess-game";
 import { algebraicToPosition, positionToAlgebraic } from "@/utilities/chess";
+import { cellSize } from "@/constants/chess-board";
+import { PendingPromotion } from "@/types/promotion";
 
 const getMoveType = (flags: string): MoveType => {
     if (flags.includes("k") || flags.includes("q")) return "castling";
@@ -65,7 +68,19 @@ const createInitialState = (): ChessGameState => {
         currentMove: null,
         animatingPieces: new Map(),
         fenString: chess.fen(),
+        pendingPromotion: null,
     };
+};
+
+const isPawnPromotion = (chess: Chess, from: Square, to: Square): boolean => {
+    const piece = chess.get(from);
+    if (!piece || piece.type !== "p") return false;
+
+    const rank = to.charAt(1);
+    return (
+        (piece.color === "w" && rank === "8") ||
+        (piece.color === "b" && rank === "1")
+    );
 };
 
 const chessReducer = (
@@ -88,7 +103,17 @@ const chessReducer = (
                 verbose: true,
             });
 
-            const validMoves: ValidMove[] = moves.map((move) => ({
+            // Group moves by destination square to avoid duplicate highlights for promotion
+            const movesByDestination = moves.reduce((acc, move) => {
+                if (!acc[move.to]) {
+                    acc[move.to] = move;
+                }
+                return acc;
+            }, {} as Record<string, Move>);
+
+            const validMoves: ValidMove[] = Object.values(
+                movesByDestination
+            ).map((move) => ({
                 to: move.to,
                 isCapture: Boolean(move.captured),
             }));
@@ -101,8 +126,26 @@ const chessReducer = (
         }
 
         case "MAKE_MOVE": {
-            console.log("move");
             const { from, to } = action.payload;
+
+            if (isPawnPromotion(chess, from, to)) {
+                const toPos = algebraicToPosition(to as Square);
+                const modalPosition = {
+                    top: toPos.row * cellSize,
+                    left: toPos.col * cellSize,
+                };
+
+                const pendingPromotion: PendingPromotion = {
+                    from,
+                    to,
+                    position: modalPosition,
+                };
+
+                return {
+                    ...state,
+                    pendingPromotion,
+                };
+            }
 
             const moveDetails = chess.move({ from, to });
 
@@ -211,6 +254,92 @@ const chessReducer = (
             };
         }
 
+        case "SET_PENDING_PROMOTION": {
+            return {
+                ...state,
+                pendingPromotion: action.payload,
+            };
+        }
+
+        case "COMPLETE_PROMOTION": {
+            if (!state.pendingPromotion) {
+                return state;
+            }
+
+            const { from, to } = state.pendingPromotion;
+            const { promotion } = action.payload;
+
+            const moveDetails = chess.move({ from, to, promotion });
+
+            if (!moveDetails) {
+                return {
+                    ...state,
+                    pendingPromotion: null,
+                };
+            }
+
+            const movements: PieceMovement[] = [
+                {
+                    pieceType: moveDetails.piece,
+                    color: moveDetails.color,
+                    from: algebraicToPosition(from as Square),
+                    to: algebraicToPosition(to as Square),
+                    animationDuration: chessGameConstants.animationDuration,
+                },
+            ];
+
+            const moveType = getMoveType(moveDetails.flags);
+
+            const newMove: ChessMove = {
+                type: moveType,
+                movements,
+                notation: moveDetails.san,
+            };
+
+            const capturedPieces = { ...state.capturedPieces };
+            if (moveDetails.captured) {
+                const capturedColor: PieceColor =
+                    moveDetails.color === "w" ? "b" : "w";
+                const capturedPosition = algebraicToPosition(to);
+
+                const capturedPiece: ChessPiece = {
+                    type: moveDetails.captured,
+                    color: capturedColor,
+                    position: capturedPosition,
+                };
+
+                newMove.capturedPiece = capturedPiece;
+                capturedPieces[capturedColor] = [
+                    ...capturedPieces[capturedColor],
+                    capturedPiece,
+                ];
+            }
+
+            const animatingPieces = new Map<string, boolean>();
+            movements.forEach((movement) => {
+                const fromPosition = positionToAlgebraic(movement.from);
+                const key = `${movement.pieceType}${movement.color}${fromPosition}`;
+                animatingPieces.set(key, true);
+            });
+
+            return {
+                ...state,
+                fenString: chess.fen(),
+                board: parseBoard(chess),
+                currentTurn: chess.turn(),
+                isCheck: chess.isCheck(),
+                isCheckmate: chess.isCheckmate(),
+                isDraw: chess.isDraw(),
+                selectedPiece: null,
+                validMoves: [],
+                moveHistory: [...state.moveHistory, newMove],
+                capturedPieces,
+                currentMove: newMove,
+                animatingPieces,
+                pendingPromotion: null,
+            };
+        }
+
         case "RESET_GAME": {
             return createInitialState();
         }
@@ -255,6 +384,7 @@ const chessReducer = (
                 },
                 currentMove: null,
                 animatingPieces: new Map(),
+                pendingPromotion: null,
             };
         }
 
@@ -280,6 +410,7 @@ const chessReducer = (
                     },
                     currentMove: null,
                     animatingPieces: new Map(),
+                    pendingPromotion: null,
                 };
             } catch (error) {
                 console.error("Недопустимая FEN-строка:", error);
@@ -299,6 +430,8 @@ type ChessContextType = {
     resetGame: () => void;
     undoMove: () => void;
     setPosition: (fen: string) => void;
+    promotePawn: (pieceType: PieceType) => void;
+    cancelPromotion: () => void;
 };
 
 const ChessContext = createContext<ChessContextType | undefined>(undefined);
@@ -332,6 +465,17 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
         dispatch({ type: "SET_POSITION", payload: fen });
     };
 
+    const promotePawn = (pieceType: PieceType) => {
+        dispatch({
+            type: "COMPLETE_PROMOTION",
+            payload: { promotion: pieceType },
+        });
+    };
+
+    const cancelPromotion = () => {
+        dispatch({ type: "SET_PENDING_PROMOTION", payload: null });
+    };
+
     return (
         <ChessContext.Provider
             value={{
@@ -341,6 +485,8 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
                 resetGame,
                 undoMove,
                 setPosition,
+                promotePawn,
+                cancelPromotion,
             }}
         >
             {children}

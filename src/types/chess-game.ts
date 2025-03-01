@@ -1,6 +1,7 @@
 import { Square } from "chess.js";
 import { CellPosition } from "./chess-board";
 import { ValidMove } from "./chess-move";
+import { PendingPromotion } from "./promotion";
 
 export type PieceType = "p" | "n" | "b" | "r" | "q" | "k";
 export type PieceColor = "w" | "b";
@@ -9,6 +10,11 @@ export interface ChessPiece {
     type: PieceType;
     color: PieceColor;
     position: CellPosition;
+}
+
+export interface ChessPieceSimple {
+    type: PieceType;
+    color: PieceColor;
 }
 
 export interface PieceMovement {
@@ -49,6 +55,7 @@ export interface ChessGameState {
     currentMove: ChessMove | null;
     animatingPieces: Map<string, boolean>;
     fenString: string;
+    pendingPromotion: PendingPromotion | null;
 }
 
 export type ChessAction =
@@ -57,4 +64,6 @@ export type ChessAction =
     | { type: "ANIMATION_COMPLETE"; payload: string }
     | { type: "RESET_GAME" }
     | { type: "UNDO_MOVE" }
-    | { type: "SET_POSITION"; payload: string }; // FEN-строка
+    | { type: "SET_POSITION"; payload: string }
+    | { type: "SET_PENDING_PROMOTION"; payload: PendingPromotion | null }
+    | { type: "COMPLETE_PROMOTION"; payload: { promotion: PieceType } };

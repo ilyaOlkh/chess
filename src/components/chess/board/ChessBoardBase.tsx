@@ -9,6 +9,7 @@ import ChessPiece from "@/components/chess/piece/ChessPiece";
 import { ChessPiece as ChessPieceType } from "@/types/chess-game";
 import { positionToAlgebraic } from "@/utilities/chess";
 import MoveHighlight from "../move-highlight/MoveHighlight";
+import PromotionModal from "../promotion/PromotionModal";
 import {
     getCellColor,
     getTextColor,
@@ -16,7 +17,8 @@ import {
 } from "./ChessBoardBase.funcs";
 
 const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
-    const { state, selectPiece, makeMove } = useChessContext();
+    const { state, selectPiece, makeMove, promotePawn, cancelPromotion } =
+        useChessContext();
 
     function handlePieceClick(piece: ChessPieceType) {
         if (piece.color === state.currentTurn) {
@@ -157,6 +159,20 @@ const ChessBoard: React.FC<ChessBoardBaseProps> = ({ className }) => {
                     })
                 )}
             </div>
+
+            {state.pendingPromotion && (
+                <>
+                    <div
+                        className="fixed inset-0 bg-opacity-50 z-50"
+                        onClick={cancelPromotion}
+                    ></div>
+                    <PromotionModal
+                        color={state.currentTurn}
+                        onSelect={promotePawn}
+                        position={state.pendingPromotion.position}
+                    />
+                </>
+            )}
         </div>
     );
 };

@@ -1,4 +1,4 @@
-import { ChessPiece } from "./chess-game";
+import { ChessPiece, ChessPieceSimple } from "./chess-game";
 import { CellPosition } from "./chess-board";
 
 export interface ChessPieceComponentProps {
@@ -25,7 +25,7 @@ export const chessPiecePaths = {
     bk: "/chess-pieces/black_king.svg",
 };
 
-export const getPiecePath = (piece: ChessPiece): string => {
+export const getPiecePath = (piece: ChessPieceSimple): string => {
     const key = `${piece.color}${piece.type}` as keyof typeof chessPiecePaths;
     return chessPiecePaths[key];
 };
