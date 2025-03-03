@@ -7,6 +7,20 @@ export const positionToAlgebraic = (position: CellPosition): Square => {
     return `${file}${rank}` as Square;
 };
 
+export const reversePosition = (
+    position: CellPosition,
+    isReversed: boolean
+): CellPosition => {
+    if (!isReversed) {
+        return position;
+    } else {
+        return {
+            row: 7 - position.row,
+            col: 7 - position.col,
+        };
+    }
+};
+
 export const algebraicToPosition = (algebraic: Square): CellPosition => {
     const col = algebraic.charCodeAt(0) - "a".charCodeAt(0);
     const row = 8 - parseInt(algebraic[1]);

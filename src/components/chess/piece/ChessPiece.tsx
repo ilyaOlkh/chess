@@ -7,29 +7,31 @@ import Image from "next/image";
 import { useChessContext } from "@/context/ChessContext";
 import { ChessMove, ChessPiece as ChessPieceType } from "@/types/chess-game";
 import { cellSize } from "@/constants/chess-board";
+import { reversePosition } from "@/utilities/chess";
 
 const ChessPiece: React.FC<ChessPieceComponentProps> = ({
     piece,
     position,
     isSelected = false,
     onClick,
+    reversed = false,
 }) => {
     const { state } = useChessContext();
     const [renderPosition, setRenderPosition] = useState<CellPosition>(
-        getInitRenderPosition(piece, position, state.currentMove)
+        getInitRenderPosition(piece, position, state.currentMove, reversed)
     );
     const [isAnimationFinished, setIsAnimationFinished] = useState(
-        !shoudAnimatedChessPiece(piece, position, state.currentMove)
+        !shouldAnimateChessPiece(piece, position, state.currentMove)
     );
 
     const imagePath = getPiecePath(piece);
 
     useEffect(() => {
         if (!isAnimationFinished) {
-            setRenderPosition(position);
+            setRenderPosition(reversePosition(position, reversed));
             setIsAnimationFinished(true);
         }
-    }, [isAnimationFinished, position]);
+    }, [isAnimationFinished, position, reversed]);
 
     const handleClick = () => {
         if (onClick) {
@@ -53,7 +55,8 @@ const ChessPiece: React.FC<ChessPieceComponentProps> = ({
         <div
             className={cn(
                 "absolute flex items-center justify-center select-none cursor-pointer z-10",
-                isSelected && "z-20 bg-highlight"
+                isSelected && "z-20 bg-highlight",
+                !onClick && "cursor-default"
             )}
             style={positionStyle}
             onClick={handleClick}
@@ -81,18 +84,25 @@ export default ChessPiece;
 function getInitRenderPosition(
     piece: ChessPieceType,
     position: CellPosition,
-    currentMove: ChessMove | null
+    currentMove: ChessMove | null,
+    reversed: boolean
 ) {
-    const movement = findCheckPieceInMovement(piece, position, currentMove);
+    const movement = findCheckPieceInMovement(
+        piece,
+        position,
+        currentMove,
+        reversed
+    );
 
-    return movement ? movement.from : position;
+    return movement ? movement.from : reversePosition(position, reversed);
 }
 
-function shoudAnimatedChessPiece(
+function shouldAnimateChessPiece(
     piece: ChessPieceType,
     position: CellPosition,
     currentMove: ChessMove | null
 ) {
+    console.log(piece, position, currentMove);
     const movement = findCheckPieceInMovement(piece, position, currentMove);
 
     return !!movement;
@@ -101,19 +111,29 @@ function shoudAnimatedChessPiece(
 function findCheckPieceInMovement(
     piece: ChessPieceType,
     position: CellPosition,
-    currentMove: ChessMove | null
+    currentMove: ChessMove | null,
+    reversed = false
 ) {
     if (!currentMove) {
         return;
     }
 
+    const targetRow = position.row;
+    const targetCol = position.col;
+
     const movement = currentMove.movements.find(
         (move) =>
             move.pieceType === piece.type &&
             move.color === piece.color &&
-            move.to.row === position.row &&
-            move.to.col === position.col
+            move.to.row === targetRow &&
+            move.to.col === targetCol
     );
 
-    return movement;
+    if (movement) {
+        return {
+            ...movement,
+            from: reversePosition(movement.from, reversed),
+            to: reversePosition(movement.from, reversed),
+        };
+    }
 }

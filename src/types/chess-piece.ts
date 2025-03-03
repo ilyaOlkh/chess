@@ -3,10 +3,11 @@ import { CellPosition } from "./chess-board";
 
 export interface ChessPieceComponentProps {
     piece: ChessPiece;
-    position: CellPosition;
+    position: CellPosition; // Реальная позиция на доске для вычислений
     isSelected?: boolean;
     isAnimating?: boolean;
     onClick?: (piece: ChessPiece) => void;
+    reversed?: boolean;
 }
 
 export const chessPiecePaths = {

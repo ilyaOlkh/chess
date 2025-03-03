@@ -14,6 +14,7 @@ export default {
                 lightText: "var(--light-text)",
                 darkText: "var(--dark-text)",
                 highlight: "var(--highlight-color)",
+                primary: "var(--primary)",
             },
             fontFamily: {
                 roboto: ["var(--font-roboto)"],
