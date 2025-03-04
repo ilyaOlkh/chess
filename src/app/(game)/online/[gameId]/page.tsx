@@ -4,14 +4,15 @@ import { useEffect, useState } from "react";
 import ChessBoard from "@/components/chess/ChessBoard";
 import { Button } from "@/components/shadcn/Button";
 import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from "@/components/shadcn/Card";
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/shadcn/Dialog";
 import { MoveData } from "@/types/chess-board";
 import { onlineGameText } from "@/constants/online-game";
 import { chessGameText } from "@/constants/chess-game";
+import { useCurrentUrl } from "@/hooks/useCurrentUrl";
 
 type GameStatus = "waiting" | "active" | "completed" | "aborted";
 type PlayerColor = "white" | "black";
@@ -26,6 +27,7 @@ interface OnlineGameState {
 }
 
 export default function OnlineGame() {
+    const currentUrl = useCurrentUrl();
     const [gameState, setGameState] = useState<OnlineGameState>({
         status: "waiting",
         playerColor: "white",
@@ -50,7 +52,7 @@ export default function OnlineGame() {
     };
 
     const copyInviteLink = () => {
-        const url = window.location.href;
+        const url = currentUrl;
         navigator.clipboard.writeText(url);
         setShowCopied(true);
         setTimeout(() => setShowCopied(false), 2000);
@@ -72,14 +74,14 @@ export default function OnlineGame() {
 
     return (
         <>
-            {gameState.status === "waiting" && (
-                <Card className="w-full mb-6 bg-white">
-                    <CardHeader>
-                        <CardTitle className="text-indigo-700">
+            <Dialog open={gameState.status === "waiting"}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="text-indigo-700">
                             {onlineGameText.waitingTitle}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="mt-2">
                         <p className="mb-3">
                             {onlineGameText.inviteInstructions}
                         </p>
@@ -87,7 +89,7 @@ export default function OnlineGame() {
                             <input
                                 type="text"
                                 className="flex-1 p-2 border rounded-md text-sm"
-                                value={window.location.href}
+                                value={currentUrl}
                                 readOnly
                             />
                             <Button
@@ -99,9 +101,9 @@ export default function OnlineGame() {
                                     : onlineGameText.copyButton}
                             </Button>
                         </div>
-                    </CardContent>
-                </Card>
-            )}
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <div className="h-full">
                 <ChessBoard

@@ -1,12 +1,11 @@
 import React from "react";
-import { ChessBoardBaseProps, PlayerLabels } from "@/types/chess-board";
+import { ChessBoardBaseProps } from "@/types/chess-board";
 import { ChessProvider } from "@/context/ChessContext";
 import { useChessContext } from "@/context/ChessContext";
 import { cn } from "@/utilities/cn";
 import ChessBoardBase from "./board/ChessBoardBase";
 import { chessGameText } from "@/constants/chess-game";
 import { Button } from "@/components/shadcn/Button";
-import CapturedPieces from "./capturedPieces/capturedPieces";
 
 interface EnhancedChessBoardProps extends ChessBoardBaseProps {
     showControls?: boolean;
