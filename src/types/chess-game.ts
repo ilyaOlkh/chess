@@ -56,6 +56,7 @@ export interface ChessGameState {
     animatingPieces: Map<string, boolean>;
     fenString: string;
     pendingPromotion: PendingPromotion | null;
+    fenHistory: string[]; // История FEN-строк для отмены ходов
 }
 
 export type ChessAction =

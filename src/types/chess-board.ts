@@ -13,6 +13,13 @@ export interface ChessBoardBaseProps {
         promotion?: string;
         fen: string;
     }) => void;
+    showCapturedPieces?: boolean;
+    playerLabels?: PlayerLabels;
+}
+
+export interface PlayerLabels {
+    whitePlayer: string;
+    blackPlayer: string;
 }
 
 export type BoardCoordinates = {

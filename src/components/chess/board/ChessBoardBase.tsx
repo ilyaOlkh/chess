@@ -15,12 +15,19 @@ import {
     getTextColor,
     isValidMove,
 } from "./ChessBoardBase.funcs";
+import CapturedPieces from "../capturedPieces/capturedPieces";
+import { chessGameText } from "@/constants/chess-game";
 
 const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
     className,
     readOnly = false,
     reversed = false,
     onTurn,
+    showCapturedPieces = true,
+    playerLabels = {
+        whitePlayer: chessGameText.localWhitePlayer,
+        blackPlayer: chessGameText.localBlackPlayer,
+    },
 }) => {
     const { state, selectPiece, makeMove, promotePawn, cancelPromotion } =
         useChessContext();
@@ -113,153 +120,186 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
     const displayFiles = reversed
         ? [...chessBoard.files].reverse()
         : [...chessBoard.files];
-
+    console.log(state.board);
     return (
-        <div
-            className={cn(
-                `w-full max-w-md mx-auto aspect-square relative`,
-                className
+        <div className={"h-full relative flex flex-col"}>
+            {/* Black player info with captured white pieces */}
+            {showCapturedPieces && (
+                <div className="w-full flex justify-start items-center mb-2 px-4">
+                    <div className="font-medium text-md">
+                        {playerLabels.blackPlayer}
+                    </div>
+                    <CapturedPieces pieces={state.capturedPieces.w} />
+                </div>
             )}
-        >
-            <div className="grid grid-cols-8 border border-gray-300 rounded shadow-md relative">
-                {displayRanks.map((rank, rowIndex) =>
-                    displayFiles.map((file, colIndex) => {
-                        // Расчет реальных координат с учетом разворота доски
-                        const boardRow = reversed ? 7 - rowIndex : rowIndex;
-                        const boardCol = reversed ? 7 - colIndex : colIndex;
+            <div className={cn("relative aspect-square ", className)}>
+                <div className={""}>
+                    <div className="grid grid-cols-8 border border-gray-300 rounded shadow-md relative">
+                        {displayRanks.map((rank, rowIndex) =>
+                            displayFiles.map((file, colIndex) => {
+                                // Расчет реальных координат с учетом разворота доски
+                                const boardRow = reversed
+                                    ? 7 - rowIndex
+                                    : rowIndex;
+                                const boardCol = reversed
+                                    ? 7 - colIndex
+                                    : colIndex;
 
-                        const realRank = chessBoard.ranks[7 - boardRow];
-                        const realFile = chessBoard.files[boardCol];
+                                const realRank = chessBoard.ranks[7 - boardRow];
+                                const realFile = chessBoard.files[boardCol];
 
-                        const isSelectedCell = state.selectedPiece
-                            ? state.selectedPiece.position.row === boardRow &&
-                              state.selectedPiece.position.col === boardCol
-                            : false;
+                                const isSelectedCell = state.selectedPiece
+                                    ? state.selectedPiece.position.row ===
+                                          boardRow &&
+                                      state.selectedPiece.position.col ===
+                                          boardCol
+                                    : false;
 
-                        return (
-                            <div
-                                key={`${file}${rank}`}
-                                className={cn(
-                                    `${getCellColor(
-                                        boardRow,
-                                        boardCol
-                                    )} aspect-square relative`,
-                                    isSelectedCell &&
-                                        "bg-highlight bg-opacity-50",
-                                    readOnly && "cursor-default"
-                                )}
-                                onClick={() =>
-                                    handleCellClick({
-                                        row: boardRow,
-                                        col: boardCol,
-                                    })
-                                }
-                            >
-                                {rowIndex === chessBoard.size - 1 && (
-                                    <span
+                                return (
+                                    <div
+                                        key={`${file}${rank}`}
                                         className={cn(
-                                            "select-none pointer-events-none absolute bottom-0 right-1 font-roboto font-medium text-sm",
-                                            getTextColor(boardRow, boardCol)
+                                            `${getCellColor(
+                                                boardRow,
+                                                boardCol
+                                            )} aspect-square relative`,
+                                            isSelectedCell &&
+                                                "bg-highlight bg-opacity-50",
+                                            readOnly && "cursor-default"
                                         )}
+                                        onClick={() =>
+                                            handleCellClick({
+                                                row: boardRow,
+                                                col: boardCol,
+                                            })
+                                        }
                                     >
-                                        {realFile}
-                                    </span>
-                                )}
-                                {colIndex === 0 && (
-                                    <span
-                                        className={cn(
-                                            "select-none pointer-events-none absolute top-0 left-1 font-roboto font-medium text-sm",
-                                            getTextColor(boardRow, boardCol)
+                                        {rowIndex === chessBoard.size - 1 && (
+                                            <span
+                                                className={cn(
+                                                    "select-none pointer-events-none absolute bottom-0 right-1 font-roboto font-medium text-sm",
+                                                    getTextColor(
+                                                        boardRow,
+                                                        boardCol
+                                                    )
+                                                )}
+                                            >
+                                                {realFile}
+                                            </span>
                                         )}
-                                    >
-                                        {realRank}
-                                    </span>
-                                )}
-                            </div>
-                        );
-                    })
-                )}
+                                        {colIndex === 0 && (
+                                            <span
+                                                className={cn(
+                                                    "select-none pointer-events-none absolute top-0 left-1 font-roboto font-medium text-sm",
+                                                    getTextColor(
+                                                        boardRow,
+                                                        boardCol
+                                                    )
+                                                )}
+                                            >
+                                                {realRank}
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        )}
 
-                {state.validMoves.length && state.selectedPiece && !readOnly ? (
-                    state.validMoves.map((move) => {
-                        // Для корректного отображения подсветок ходов при развороте доски
-                        // нужно преобразовать позиции с учетом разворота
-                        const adjustedMove = {
-                            ...move,
-                            to: move.to, // Не меняем алгебраическую нотацию, т.к. MoveHighlight конвертирует ее сам
-                        };
+                        {state.validMoves.length &&
+                        state.selectedPiece &&
+                        !readOnly ? (
+                            state.validMoves.map((move) => {
+                                // Для корректного отображения подсветок ходов при развороте доски
+                                // нужно преобразовать позиции с учетом разворота
+                                const adjustedMove = {
+                                    ...move,
+                                    to: move.to, // Не меняем алгебраическую нотацию, т.к. MoveHighlight конвертирует ее сам
+                                };
 
-                        return (
-                            <MoveHighlight
-                                key={`highlight-${move.to}`}
-                                move={adjustedMove}
-                                reversed={reversed}
-                            />
-                        );
-                    })
-                ) : (
-                    <></>
-                )}
+                                return (
+                                    <MoveHighlight
+                                        key={`highlight-${move.to}`}
+                                        move={adjustedMove}
+                                        reversed={reversed}
+                                    />
+                                );
+                            })
+                        ) : (
+                            <></>
+                        )}
 
-                {state.board.map((row, rowIndex) =>
-                    row.map((piece, colIndex) => {
-                        if (!piece) return null;
+                        {state.board.map((row, rowIndex) =>
+                            row.map((piece, colIndex) => {
+                                if (!piece) return null;
 
-                        const pieceKey = `${piece.type}${piece.color}${rowIndex}${colIndex}`;
+                                const pieceKey = `${piece.type}${piece.color}${rowIndex}${colIndex}`;
 
-                        const isSelected = state.selectedPiece
-                            ? state.selectedPiece.position.row === rowIndex &&
-                              state.selectedPiece.position.col === colIndex
-                            : false;
+                                const isSelected = state.selectedPiece
+                                    ? state.selectedPiece.position.row ===
+                                          rowIndex &&
+                                      state.selectedPiece.position.col ===
+                                          colIndex
+                                    : false;
 
-                        return (
-                            <ChessPiece
-                                key={pieceKey}
-                                piece={piece}
-                                position={{
-                                    row: rowIndex,
-                                    col: colIndex,
-                                }}
-                                isSelected={isSelected && !readOnly}
-                                onClick={
-                                    !readOnly ? handlePieceClick : undefined
-                                }
-                                reversed={reversed}
-                            />
-                        );
-                    })
+                                return (
+                                    <ChessPiece
+                                        key={pieceKey}
+                                        piece={piece}
+                                        position={{
+                                            row: rowIndex,
+                                            col: colIndex,
+                                        }}
+                                        isSelected={isSelected && !readOnly}
+                                        onClick={
+                                            !readOnly
+                                                ? handlePieceClick
+                                                : undefined
+                                        }
+                                        reversed={reversed}
+                                    />
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+                {state.pendingPromotion && !readOnly && (
+                    <>
+                        <div
+                            className="fixed inset-0 bg-opacity-50 z-50"
+                            onClick={cancelPromotion}
+                        ></div>
+                        <PromotionModal
+                            color={state.currentTurn}
+                            onSelect={handlePromotionSelect}
+                            position={{
+                                top: reversed
+                                    ? (7 -
+                                          Math.floor(
+                                              state.pendingPromotion.position
+                                                  .top / 12.5
+                                          )) *
+                                      12.5
+                                    : state.pendingPromotion.position.top,
+                                left: reversed
+                                    ? (7 -
+                                          Math.floor(
+                                              state.pendingPromotion.position
+                                                  .left / 12.5
+                                          )) *
+                                      12.5
+                                    : state.pendingPromotion.position.left,
+                            }}
+                        />
+                    </>
                 )}
             </div>
-
-            {state.pendingPromotion && !readOnly && (
-                <>
-                    <div
-                        className="fixed inset-0 bg-opacity-50 z-50"
-                        onClick={cancelPromotion}
-                    ></div>
-                    <PromotionModal
-                        color={state.currentTurn}
-                        onSelect={handlePromotionSelect}
-                        position={{
-                            top: reversed
-                                ? (7 -
-                                      Math.floor(
-                                          state.pendingPromotion.position.top /
-                                              12.5
-                                      )) *
-                                  12.5
-                                : state.pendingPromotion.position.top,
-                            left: reversed
-                                ? (7 -
-                                      Math.floor(
-                                          state.pendingPromotion.position.left /
-                                              12.5
-                                      )) *
-                                  12.5
-                                : state.pendingPromotion.position.left,
-                        }}
-                    />
-                </>
+            {showCapturedPieces && (
+                <div className="w-full flex justify-start items-center mt-2 px-4">
+                    <div className="font-medium text-md">
+                        {playerLabels.whitePlayer}
+                    </div>
+                    <CapturedPieces pieces={state.capturedPieces.b} />
+                </div>
             )}
         </div>
     );

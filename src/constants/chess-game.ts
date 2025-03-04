@@ -16,7 +16,11 @@ export const chessGameText = {
     drawMessage: "Ничья! Игра окончена.",
     whiteTurn: "Ход белых",
     blackTurn: "Ход черных",
-    capturedPiecesLabel: "Взятые фигуры",
     undoButtonLabel: "Отменить ход",
     resetButtonLabel: "Новая игра",
+    gameControlsTitle: "Управление игрой",
+    localWhitePlayer: "Белые",
+    localBlackPlayer: "Черные",
+    onlineFirstPlayer: "Игрок 1",
+    onlineSecondPlayer: "Игрок 2",
 };

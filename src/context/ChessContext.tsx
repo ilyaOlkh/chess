@@ -51,6 +51,7 @@ const parseBoard = (chess: Chess): (ChessPiece | null)[][] => {
 
 const createInitialState = (): ChessGameState => {
     const chess = new Chess();
+    const initialFen = chess.fen();
 
     return {
         board: parseBoard(chess),
@@ -67,8 +68,9 @@ const createInitialState = (): ChessGameState => {
         },
         currentMove: null,
         animatingPieces: new Map(),
-        fenString: chess.fen(),
+        fenString: initialFen,
         pendingPromotion: null,
+        fenHistory: [initialFen],
     };
 };
 
@@ -237,9 +239,11 @@ const chessReducer = (
                 animatingPieces.set(key, true);
             });
 
+            const newFen = chess.fen();
+
             return {
                 ...state,
-                fenString: chess.fen(),
+                fenString: newFen,
                 board: parseBoard(chess),
                 currentTurn: chess.turn(),
                 isCheck: chess.isCheck(),
@@ -251,6 +255,7 @@ const chessReducer = (
                 capturedPieces,
                 currentMove: newMove,
                 animatingPieces,
+                fenHistory: [...state.fenHistory, newFen],
             };
         }
 
@@ -322,9 +327,11 @@ const chessReducer = (
                 animatingPieces.set(key, true);
             });
 
+            const newFen = chess.fen();
+
             return {
                 ...state,
-                fenString: chess.fen(),
+                fenString: newFen,
                 board: parseBoard(chess),
                 currentTurn: chess.turn(),
                 isCheck: chess.isCheck(),
@@ -337,6 +344,7 @@ const chessReducer = (
                 currentMove: newMove,
                 animatingPieces,
                 pendingPromotion: null,
+                fenHistory: [...state.fenHistory, newFen],
             };
         }
 
@@ -345,20 +353,29 @@ const chessReducer = (
         }
 
         case "UNDO_MOVE": {
-            if (state.moveHistory.length === 0) {
+            if (
+                state.moveHistory.length === 0 ||
+                state.fenHistory.length <= 1
+            ) {
                 return state;
             }
 
-            chess.undo();
+            // Получаем предыдущий FEN из истории
+            const previousFenHistory = state.fenHistory.slice(0, -1);
+            const previousFen =
+                previousFenHistory[previousFenHistory.length - 1];
+
+            // Создаем новый экземпляр шахмат с предыдущей позицией
+            const previousChess = new Chess(previousFen);
 
             return {
                 ...state,
-                fenString: chess.fen(),
-                board: parseBoard(chess),
-                currentTurn: chess.turn(),
-                isCheck: chess.isCheck(),
-                isCheckmate: chess.isCheckmate(),
-                isDraw: chess.isDraw(),
+                fenString: previousFen,
+                board: parseBoard(previousChess),
+                currentTurn: previousChess.turn(),
+                isCheck: previousChess.isCheck(),
+                isCheckmate: previousChess.isCheckmate(),
+                isDraw: previousChess.isDraw(),
                 selectedPiece: null,
                 validMoves: [],
                 moveHistory: state.moveHistory.slice(0, -1),
@@ -385,6 +402,7 @@ const chessReducer = (
                 currentMove: null,
                 animatingPieces: new Map(),
                 pendingPromotion: null,
+                fenHistory: previousFenHistory,
             };
         }
 
@@ -392,10 +410,11 @@ const chessReducer = (
             const fen = action.payload;
             try {
                 chess.load(fen);
+                const newFen = chess.fen();
 
                 return {
                     ...state,
-                    fenString: chess.fen(),
+                    fenString: newFen,
                     board: parseBoard(chess),
                     currentTurn: chess.turn(),
                     isCheck: chess.isCheck(),
@@ -411,6 +430,7 @@ const chessReducer = (
                     currentMove: null,
                     animatingPieces: new Map(),
                     pendingPromotion: null,
+                    fenHistory: [newFen],
                 };
             } catch (error) {
                 console.error("Недопустимая FEN-строка:", error);
@@ -497,9 +517,7 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
 export const useChessContext = () => {
     const context = useContext(ChessContext);
     if (context === undefined) {
-        throw new Error(
-            "useEnhancedChessContext must be used within EnhancedChessProvider"
-        );
+        throw new Error("useChessContext must be used within ChessProvider");
     }
     return context;
 };

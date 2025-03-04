@@ -1,14 +1,17 @@
-"use client";
-
-import ChessBoard from "@/components/chess/ChessBoard";
-import { Button } from "@/components/shadcn/Button";
+import React, { ReactNode } from "react";
 import Link from "next/link";
+import { Button } from "@/components/shadcn/Button";
 
-export default function LocalGame() {
+interface GameLayoutProps {
+    title: string;
+    children: ReactNode;
+}
+
+const GameLayout: React.FC<GameLayoutProps> = ({ title, children }) => {
     return (
-        <main className="flex min-h-screen flex-col items-center justify-start p-4 md:p-8">
-            <div className="w-full max-w-4xl mx-auto">
-                <div className="flex justify-between items-center mb-6">
+        <main className="flex min-h-screen flex-col">
+            <div className="w-full h-full">
+                <div className="flex justify-between items-center p-4">
                     <Button
                         variant="outline"
                         asChild
@@ -34,20 +37,16 @@ export default function LocalGame() {
                     </Button>
 
                     <h1 className="text-2xl font-bold text-indigo-700">
-                        Гра на одному пристрої
+                        {title}
                     </h1>
 
-                    <div className="w-[100px]">
-                        {/* Пустой div для выравнивания */}
-                    </div>
+                    <div className="w-[100px]"></div>
                 </div>
 
-                <ChessBoard
-                    showControls={true}
-                    showCapturedPieces={true}
-                    showStatusBar={true}
-                />
+                <div className="h-[calc(100vh-80px)]">{children}</div>
             </div>
         </main>
     );
-}
+};
+
+export default GameLayout;

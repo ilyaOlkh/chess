@@ -102,7 +102,6 @@ function shouldAnimateChessPiece(
     position: CellPosition,
     currentMove: ChessMove | null
 ) {
-    console.log(piece, position, currentMove);
     const movement = findCheckPieceInMovement(piece, position, currentMove);
 
     return !!movement;
