@@ -147,7 +147,7 @@ export async function hasSubscribers(gameId: string): Promise<boolean> {
     const channel = getGameChannel(gameId);
     try {
         const numSub = await redisPublisher.pubsub("NUMSUB", channel);
-        return numSub[1] > 0;
+        return Number(numSub[1]) > 0;
     } catch (error) {
         console.error(`Error checking subscribers for ${channel}:`, error);
         return false;
