@@ -170,8 +170,6 @@ export function waitForGameEvent(
     timeoutMs: number = 30000
 ): Promise<GameEvent | null> {
     return new Promise((resolve) => {
-        const channel = getGameChannel(gameId);
-
         // Set timeout timer
         const timeoutId = setTimeout(() => {
             unsubscribe().then(() => {
