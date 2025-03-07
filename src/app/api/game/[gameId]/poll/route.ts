@@ -1,26 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
     verifyPlayerToken,
-    updatePlayerMoveTime,
     hasMoveTimeExpired,
+    updatePlayerTokenTimestamp,
+    updatePlayerTimeAndTimestamp,
 } from "@/lib/auth/player-auth";
-import { getGame, getLatestTurn } from "@/lib/redis/redis-setup";
-import { waitForGameEvent } from "@/lib/redis/redis-pubsub";
+import {
+    getGame,
+    getLatestTurn,
+    GameStatus,
+    Winner,
+} from "@/lib/redis/redis-setup";
+import {
+    waitForGameEvent,
+    getEventsSince,
+    GameEvent,
+} from "@/lib/redis/redis-pubsub";
 import { Chess } from "chess.js";
 
-// Таймаут для long polling запроса
+// Long polling timeout in milliseconds
 const LONG_POLL_TIMEOUT = 30 * 1000;
+
+// State interface for event processing
+interface GameState {
+    currentFen: string;
+    gameStatus: GameStatus;
+    winner: Winner;
+    lastMove?: {
+        from: string;
+        to: string;
+        promotion?: string | null;
+    };
+}
+
+// Process missed event and extract relevant data
+function processMissedEvent(event: GameEvent, state: GameState): void {
+    switch (event.type) {
+        case "move_made": {
+            const data = event.data as {
+                from: string;
+                to: string;
+                promotion?: string | null;
+                fen: string;
+            };
+            state.lastMove = {
+                from: data.from,
+                to: data.to,
+                promotion: data.promotion,
+            };
+            state.currentFen = data.fen;
+            break;
+        }
+        case "game_status_changed": {
+            const data = event.data as {
+                status: string;
+                winner: string | null;
+            };
+            state.gameStatus = data.status as GameStatus;
+            state.winner = data.winner as Winner;
+            break;
+        }
+        case "player_joined": {
+            // Usually no state change needed
+            break;
+        }
+    }
+}
 
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ gameId: string }> }
 ) {
-    // Получаем gameId из параметров маршрута
+    // Get gameId from route parameters
     const { gameId } = await params;
     console.log(`Long polling request for game ${gameId}`);
 
     try {
-        // Проверяем авторизацию
+        // Check authorization
         const authHeader = request.headers.get("Authorization");
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
             return NextResponse.json(
@@ -29,7 +85,7 @@ export async function GET(
             );
         }
 
-        // Получаем и проверяем токен
+        // Get and verify token
         const token = authHeader.split(" ")[1];
         const tokenData = verifyPlayerToken(token);
 
@@ -40,7 +96,7 @@ export async function GET(
             );
         }
 
-        // Проверяем, что токен соответствует запрошенной игре
+        // Check if token matches requested game
         if (tokenData.gameId !== gameId) {
             return NextResponse.json(
                 { error: "Unauthorized: Token does not match game ID" },
@@ -48,9 +104,9 @@ export async function GET(
             );
         }
 
-        // Проверяем, истекло ли время хода
+        // Check if move time has expired
         if (tokenData.playerRole !== "spectator" && hasMoveTimeExpired(token)) {
-            // Игрок проиграл из-за истечения времени
+            // Player lost due to time expiration
             return NextResponse.json({
                 success: false,
                 gameStatus: "completed",
@@ -59,7 +115,7 @@ export async function GET(
             });
         }
 
-        // Получаем начальное состояние игры
+        // Get initial game state
         let game = await getGame(gameId);
         if (!game) {
             return NextResponse.json(
@@ -68,7 +124,7 @@ export async function GET(
             );
         }
 
-        // Если игра уже завершена, просто возвращаем финальное состояние
+        // If game is already completed, just return final state
         if (game.status === "completed" || game.status === "aborted") {
             return NextResponse.json({
                 success: true,
@@ -80,7 +136,7 @@ export async function GET(
             });
         }
 
-        // Определяем, подключен ли оппонент
+        // Determine if opponent is connected
         const opponentConnected =
             tokenData.playerRole === "first"
                 ? game.secondPlayerId !== null
@@ -88,22 +144,112 @@ export async function GET(
                 ? game.firstPlayerId !== null
                 : game.firstPlayerId !== null && game.secondPlayerId !== null;
 
-        // Определяем текущий ход на основе FEN
+        // Determine current turn based on FEN
         const chess = new Chess(game.currentFen);
         const currentTurn = chess.turn() === "w" ? "white" : "black";
 
-        // Определяем, ход ли игрока
+        // Determine if it's player's turn
         const isPlayerTurn =
             tokenData.playerRole !== "spectator" &&
             tokenData.playerColor === currentTurn;
 
-        // Ждем событие с использованием Redis Pub/Sub
+        // Check for missed events
+        const lastClientEventTimestamp = tokenData.lastEventTimestamp || 0;
+        const missedEvents = await getEventsSince(
+            gameId,
+            lastClientEventTimestamp
+        );
+
+        if (missedEvents.length > 0) {
+            console.log(
+                `Found ${missedEvents.length} missed events for game ${gameId}`
+            );
+
+            // Initialize state with current game data
+            const state: GameState = {
+                currentFen: game.currentFen,
+                gameStatus: game.status,
+                winner: game.winner,
+            };
+
+            // Process each missed event to build up the state
+            missedEvents.forEach((event) => {
+                processMissedEvent(event, state);
+            });
+
+            // Get the latest timestamp from the missed events
+            const latestEventTimestamp =
+                missedEvents[missedEvents.length - 1].timestamp;
+
+            // Get the latest turn information
+            const latestTurn = await getLatestTurn(gameId);
+
+            // If we have a move in state from missed events, use that
+            // Otherwise, use the latest turn from the database
+            const lastMove =
+                state.lastMove ||
+                (latestTurn
+                    ? {
+                          from: latestTurn.from,
+                          to: latestTurn.to,
+                          promotion: latestTurn.promotionPiece,
+                      }
+                    : null);
+
+            // Check for checkmate, stalemate, etc. based on current FEN
+            const currentChess = new Chess(state.currentFen);
+            const currentChessTurn =
+                currentChess.turn() === "w" ? "white" : "black";
+
+            // Determine if it's the player's turn based on processed events
+            const updatedIsPlayerTurn =
+                tokenData.playerRole !== "spectator" &&
+                tokenData.playerColor === currentChessTurn;
+
+            const isCheckmate = currentChess.isCheckmate();
+            const isDraw = currentChess.isDraw();
+
+            // Create a new token with updated timestamp
+            let newToken;
+            if (updatedIsPlayerTurn && tokenData.moveTimeRemaining !== null) {
+                newToken = updatePlayerTimeAndTimestamp(
+                    token,
+                    game.timeControl,
+                    latestEventTimestamp
+                );
+            } else {
+                newToken = updatePlayerTokenTimestamp(
+                    token,
+                    latestEventTimestamp
+                );
+            }
+
+            return NextResponse.json({
+                success: true,
+                gameStatus: state.gameStatus,
+                fenPosition: state.currentFen,
+                lastMove,
+                playerTurn: updatedIsPlayerTurn,
+                checkmate: isCheckmate,
+                draw: isDraw,
+                winner: state.winner,
+                newToken,
+                opponentConnected: true,
+                missedEvents: missedEvents.map((e) => ({
+                    type: e.type,
+                    timestamp: e.timestamp,
+                })),
+            });
+        }
+
+        // Wait for new event using Redis Pub/Sub
+        console.log(`Waiting for new events for game ${gameId}`);
         const event = await waitForGameEvent(gameId, LONG_POLL_TIMEOUT);
 
         if (event) {
             console.log(`Received event for game ${gameId}:`, event);
 
-            // Перезагружаем данные игры после события
+            // Reload game data after event
             game = await getGame(gameId);
             if (!game) {
                 return NextResponse.json(
@@ -112,12 +258,18 @@ export async function GET(
                 );
             }
 
-            // Обрабатываем разные типы событий
+            // Process different event types
             switch (event.type) {
                 case "player_joined": {
-                    // Игрок присоединился
+                    // Player joined
                     const newOpponentConnected =
                         tokenData.playerRole === "first";
+
+                    // Update token with new timestamp
+                    const newToken = updatePlayerTokenTimestamp(
+                        token,
+                        event.timestamp
+                    );
 
                     return NextResponse.json({
                         success: true,
@@ -125,37 +277,59 @@ export async function GET(
                         fenPosition: game.currentFen,
                         opponentConnected: newOpponentConnected,
                         playerTurn: isPlayerTurn,
+                        newToken,
+                        events: [
+                            {
+                                type: event.type,
+                                timestamp: event.timestamp,
+                                data: event.data,
+                            },
+                        ],
                     });
                 }
 
                 case "move_made": {
-                    // Был сделан ход
-                    // Обновляем шахматную логику с новой позицией
+                    // Move was made
+                    const moveData = event.data as {
+                        from: string;
+                        to: string;
+                        promotion?: string;
+                        color: string;
+                        fen: string;
+                    };
+
+                    // Update chess logic with new position
                     const newChess = new Chess(game.currentFen);
+                    console.log(game.currentFen);
                     const newCurrentTurn =
                         newChess.turn() === "w" ? "white" : "black";
 
-                    // Получаем данные последнего хода
-                    const latestTurn = await getLatestTurn(gameId);
-
-                    // Определяем, ход ли игрока теперь
+                    // Determine if it's player's turn now
                     const newIsPlayerTurn =
                         tokenData.playerRole !== "spectator" &&
                         tokenData.playerColor === newCurrentTurn;
 
-                    // Проверяем шах, мат и пат
+                    // Check for checkmate, stalemate, etc.
                     const isCheckmate = newChess.isCheckmate();
                     const isDraw = newChess.isDraw();
 
-                    // Если теперь ход игрока, обновляем время в его токене
-                    let newToken = null;
+                    // If it's now player's turn, update time in token
+                    let newToken;
                     if (
                         newIsPlayerTurn &&
                         tokenData.moveTimeRemaining !== null
                     ) {
-                        newToken = updatePlayerMoveTime(
+                        // Update both move time and event timestamp
+                        newToken = updatePlayerTimeAndTimestamp(
                             token,
-                            game.timeControl
+                            game.timeControl,
+                            event.timestamp
+                        );
+                    } else {
+                        // Just update event timestamp
+                        newToken = updatePlayerTokenTimestamp(
+                            token,
+                            event.timestamp
                         );
                     }
 
@@ -163,47 +337,92 @@ export async function GET(
                         success: true,
                         gameStatus: game.status,
                         fenPosition: game.currentFen,
-                        lastMove: latestTurn
-                            ? {
-                                  from: latestTurn.from,
-                                  to: latestTurn.to,
-                                  promotion: latestTurn.promotionPiece,
-                              }
-                            : null,
+                        lastMove: {
+                            from: moveData.from,
+                            to: moveData.to,
+                            promotion: moveData.promotion,
+                        },
                         playerTurn: newIsPlayerTurn,
                         checkmate: isCheckmate,
                         draw: isDraw,
-                        newToken: newToken,
+                        newToken,
                         opponentConnected: true,
+                        events: [
+                            {
+                                type: event.type,
+                                timestamp: event.timestamp,
+                                data: {
+                                    from: moveData.from,
+                                    to: moveData.to,
+                                    promotion: moveData.promotion,
+                                    color: moveData.color,
+                                },
+                            },
+                        ],
                     });
                 }
 
                 case "game_status_changed": {
-                    // Статус игры изменился
+                    // Game status changed
+                    const statusData = event.data as {
+                        status: string;
+                        winner: string | null;
+                    };
+
+                    // Update token with new timestamp
+                    const newToken = updatePlayerTokenTimestamp(
+                        token,
+                        event.timestamp
+                    );
+
                     return NextResponse.json({
                         success: true,
-                        gameStatus: game.status,
+                        gameStatus: statusData.status,
                         fenPosition: game.currentFen,
                         playerTurn: isPlayerTurn,
-                        winner: game.winner,
+                        winner: statusData.winner,
                         opponentConnected: true,
+                        newToken,
+                        events: [
+                            {
+                                type: event.type,
+                                timestamp: event.timestamp,
+                                data: {
+                                    status: statusData.status,
+                                    winner: statusData.winner,
+                                },
+                            },
+                        ],
                     });
                 }
 
                 default: {
-                    // Неизвестный тип события, возвращаем текущее состояние
+                    // Unknown event type, return current state
+                    // Update token with new timestamp
+                    const newToken = updatePlayerTokenTimestamp(
+                        token,
+                        event.timestamp
+                    );
+
                     return NextResponse.json({
                         success: true,
                         gameStatus: game.status,
                         fenPosition: game.currentFen,
                         playerTurn: isPlayerTurn,
                         opponentConnected,
+                        newToken,
+                        events: [
+                            {
+                                type: event.type,
+                                timestamp: event.timestamp,
+                            },
+                        ],
                     });
                 }
             }
         }
 
-        // Если не получили событие за время таймаута, возвращаем текущее состояние
+        // If no event received within timeout, return current state
         return NextResponse.json({
             success: true,
             gameStatus: game.status,

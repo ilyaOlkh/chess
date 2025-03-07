@@ -79,6 +79,14 @@ export async function updateGame(
         throw new Error(`Game with ID ${gameId} not found`);
     }
 
+    // Update the game data
+    await redis.hset(keyStructure.game(gameId), updateData);
+
+    // Если добавляется второй игрок, публикуем событие
+    if (updateData.secondPlayerId && !game.secondPlayerId) {
+        await publishPlayerJoined(gameId, updateData.secondPlayerId, "second");
+    }
+
     // If we're updating status, handle the sets accordingly
     if (updateData.status && updateData.status !== game.status) {
         if (game.status === "waiting") {
@@ -102,14 +110,6 @@ export async function updateGame(
             updateData.winner || game.winner
         );
     }
-
-    // Если добавляется второй игрок, публикуем событие
-    if (updateData.secondPlayerId && !game.secondPlayerId) {
-        await publishPlayerJoined(gameId, updateData.secondPlayerId, "second");
-    }
-
-    // Update the game data
-    await redis.hset(keyStructure.game(gameId), updateData);
 }
 
 export async function getGame(gameId: string): Promise<GameData | null> {

@@ -11,6 +11,7 @@ export interface PlayerTokenPayload {
     playerRole: PlayerRole;
     issuedAt: number; // Unix timestamp
     moveTimeRemaining: number | null; // In seconds, null for spectators
+    lastEventTimestamp: number; // Timestamp of the last processed event
     iat?: number;
     exp?: number;
 }
@@ -71,6 +72,53 @@ export function updatePlayerMoveTime(
 }
 
 /**
+ * Updates the player token with a new last event timestamp
+ */
+export function updatePlayerTokenTimestamp(
+    token: string,
+    timestamp: number
+): string {
+    const payload = verifyPlayerToken(token);
+
+    if (!payload) {
+        throw new Error("Invalid token");
+    }
+
+    // Create a new token with updated timestamp
+    const newPayload: PlayerTokenPayload = {
+        ...payload,
+        lastEventTimestamp: timestamp,
+    };
+
+    return createPlayerToken(newPayload);
+}
+
+/**
+ * Updates both move time and last event timestamp in a player's token
+ */
+export function updatePlayerTimeAndTimestamp(
+    token: string,
+    timeRemaining: number,
+    timestamp: number
+): string {
+    const payload = verifyPlayerToken(token);
+
+    if (!payload) {
+        throw new Error("Invalid token");
+    }
+
+    // Create a new token with updated time and timestamp
+    const newPayload: PlayerTokenPayload = {
+        ...payload,
+        moveTimeRemaining: timeRemaining,
+        issuedAt: Math.floor(Date.now() / 1000),
+        lastEventTimestamp: timestamp,
+    };
+
+    return createPlayerToken(newPayload);
+}
+
+/**
  * Checks if a player's move time has expired
  */
 export function hasMoveTimeExpired(token: string): boolean {
@@ -110,6 +158,7 @@ export function generatePlayerJoinToken(
         playerRole,
         issuedAt: Math.floor(Date.now() / 1000),
         moveTimeRemaining: timeControl,
+        lastEventTimestamp: Date.now(),
     };
 
     return createPlayerToken(payload);
@@ -128,6 +177,7 @@ export function generateSpectatorToken(gameId: string): string {
         playerRole: "spectator",
         issuedAt: Math.floor(Date.now() / 1000),
         moveTimeRemaining: null,
+        lastEventTimestamp: Date.now(),
     };
 
     return createPlayerToken(payload);

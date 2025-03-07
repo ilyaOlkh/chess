@@ -82,13 +82,13 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
             }
 
             const lastMove = data.lastMove;
-            if (lastMove) {
+            if (lastMove && data.playerTurn) {
                 makeIntermalMove(lastMove.from, lastMove.to);
                 if (lastMove.promotion) {
                     promotePawn(lastMove.promotion);
                 }
             }
-            console.log(data.lastMove);
+
             setGameState((prev) => ({
                 ...prev,
                 status: (data.gameStatus as GameStatus) || prev.status,
@@ -150,6 +150,7 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                         playerRole: response.playerRole || "spectator",
                         playerColor: response.playerColor || null,
                         playerId: response.playerId || null,
+                        isPlayerTurn: !!response.playerTurn,
                         status:
                             (response.gameStatus as GameStatus) || "waiting",
                         opponentConnected: response.opponentConnected || false,

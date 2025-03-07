@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChessBoard from "@/components/chess/ChessBoard";
 import { Button } from "@/components/shadcn/Button";
@@ -34,17 +34,19 @@ export default function OnlineGame({
         gameState.playerRole === "spectator" || !gameState.isPlayerTurn
     );
 
-    const handleMove = async (moveData: MoveData) => {
-        setIsReadOnly(false);
-        console.log(1);
-        const success = await makeMove(moveData);
+    const handleMove = useCallback(
+        async (moveData: MoveData) => {
+            setIsReadOnly(false);
+            const success = await makeMove(moveData);
 
-        if (!success) {
-            setIsReadOnly(true);
-        }
+            if (!success) {
+                setIsReadOnly(true);
+            }
 
-        return success;
-    };
+            return success;
+        },
+        [makeMove]
+    );
 
     const copyInviteLink = () => {
         navigator.clipboard.writeText(currentUrl);
@@ -60,8 +62,10 @@ export default function OnlineGame({
     }, [gameState.error]);
 
     // Determine board settings
-    const isPlayerWhite = gameState.playerColor === "white";
-    const isReversed = !isPlayerWhite; // Reverse board for black player
+    const isPlayerWhite = useMemo(
+        () => gameState.playerColor === "white",
+        [gameState.playerColor]
+    );
 
     useEffect(() => {
         setIsReadOnly(
@@ -162,7 +166,7 @@ export default function OnlineGame({
                     showCapturedPieces={true}
                     showStatusBar={true}
                     className="h-[min(calc(100%-58px),calc(100vw-50px))]"
-                    reversed={isReversed}
+                    reversed={!isPlayerWhite}
                     playerLabels={{
                         whitePlayer:
                             gameState.playerColor === "white"

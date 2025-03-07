@@ -42,8 +42,9 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
                 const from = positionToAlgebraic(state.selectedPiece.position);
                 const to = positionToAlgebraic(piece.position);
                 if (isValidMove(state, to)) {
+                    console.log(1);
                     const { isPawnPromotion } = makeMove(from, to);
-                    console.log(isPawnPromotion);
+
                     if (onTurn && !isPawnPromotion) {
                         onTurn({
                             from,
@@ -64,6 +65,7 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
             const to = positionToAlgebraic(position);
 
             if (isValidMove(state, to)) {
+                console.log(2);
                 const { isPawnPromotion } = makeMove(from, to);
                 console.log(isPawnPromotion);
                 if (onTurn && !isPawnPromotion) {
@@ -124,13 +126,20 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
 
     return (
         <div className={"h-full relative flex flex-col"}>
-            {/* Black player info with captured white pieces */}
             {showCapturedPieces && (
-                <div className="w-full flex justify-start items-center mb-2 px-4">
+                <div className="w-full flex justify-start items-center mt-2 px-4">
                     <div className="font-medium text-md">
-                        {playerLabels.blackPlayer}
+                        {reversed
+                            ? playerLabels.whitePlayer
+                            : playerLabels.blackPlayer}
                     </div>
-                    <CapturedPieces pieces={state.capturedPieces.w} />
+                    <CapturedPieces
+                        pieces={
+                            reversed
+                                ? state.capturedPieces.w
+                                : state.capturedPieces.b
+                        }
+                    />
                 </div>
             )}
             <div className={cn("relative aspect-square ", className)}>
@@ -294,12 +303,21 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
                     </>
                 )}
             </div>
+
             {showCapturedPieces && (
                 <div className="w-full flex justify-start items-center mt-2 px-4">
                     <div className="font-medium text-md">
-                        {playerLabels.whitePlayer}
+                        {reversed
+                            ? playerLabels.blackPlayer
+                            : playerLabels.whitePlayer}
                     </div>
-                    <CapturedPieces pieces={state.capturedPieces.b} />
+                    <CapturedPieces
+                        pieces={
+                            reversed
+                                ? state.capturedPieces.b
+                                : state.capturedPieces.w
+                        }
+                    />
                 </div>
             )}
         </div>

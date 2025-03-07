@@ -9,7 +9,6 @@ import {
     updateGameStatus,
     updateGameFen,
     createTurn,
-    getLatestTurn,
     getWaitingGames,
     updateGame,
 } from "../redis/redis-setup";
@@ -211,19 +210,6 @@ export async function makeMove(
             return { success: false, error: "Invalid move" };
         }
 
-        // Record the turn
-        const turnData: TurnData = {
-            id: "",
-            gameId,
-            from,
-            to,
-            createTime: new Date().toISOString(),
-            color: currentTurn,
-            promotionPiece,
-        };
-
-        await createTurn(turnData);
-
         // Check for game end conditions
         let gameOver = false;
         let gameResult: Winner = null;
@@ -241,6 +227,19 @@ export async function makeMove(
         // Move is valid, record it
         const newFen = chess.fen();
         await updateGameFen(gameId, newFen);
+
+        // Record the turn
+        const turnData: TurnData = {
+            id: "",
+            gameId,
+            from,
+            to,
+            createTime: new Date().toISOString(),
+            color: currentTurn,
+            promotionPiece,
+        };
+
+        await createTurn(turnData);
 
         // Update the opponent's token with fresh move time
         // For simplicity, getting the new token requires a separate call
@@ -267,97 +266,4 @@ export async function makeMove(
  */
 export async function findAvailableGames(): Promise<GameData[]> {
     return getWaitingGames();
-}
-
-/**
- * Abort a game (e.g., if a player disconnects)
- */
-export async function abortGame(
-    token: string
-): Promise<{ success: boolean; error?: string }> {
-    const tokenData = verifyPlayerToken(token);
-
-    if (!tokenData) {
-        return { success: false, error: "Invalid token" };
-    }
-
-    const gameId = tokenData.gameId;
-    const game = await getGame(gameId);
-
-    if (!game) {
-        return { success: false, error: "Game not found" };
-    }
-
-    // Only players (not spectators) can abort games
-    if (tokenData.playerRole === "spectator") {
-        return { success: false, error: "Spectators cannot abort games" };
-    }
-
-    // Only abort if game is waiting or active
-    if (game.status !== "waiting" && game.status !== "active") {
-        return { success: false, error: "Game is already finished" };
-    }
-
-    await updateGameStatus(gameId, "aborted");
-
-    return { success: true };
-}
-
-/**
- * Get current game state
- */
-export async function getGameState(token: string): Promise<{
-    game: GameData | null;
-    error?: string;
-}> {
-    const tokenData = verifyPlayerToken(token);
-
-    if (!tokenData) {
-        return { game: null, error: "Invalid token" };
-    }
-
-    const game = await getGame(tokenData.gameId);
-
-    if (!game) {
-        return { game: null, error: "Game not found" };
-    }
-
-    return { game };
-}
-
-/**
- * Refresh player token with updated time (after opponent's move)
- */
-export async function refreshPlayerToken(token: string): Promise<{
-    newToken: string | null;
-    error?: string;
-}> {
-    const tokenData = verifyPlayerToken(token);
-
-    if (!tokenData) {
-        return { newToken: null, error: "Invalid token" };
-    }
-
-    const game = await getGame(tokenData.gameId);
-
-    if (!game) {
-        return { newToken: null, error: "Game not found" };
-    }
-
-    // Get the latest turn to see if it's this player's turn now
-    const latestTurn = await getLatestTurn(tokenData.gameId);
-
-    // If no turns yet, white goes first
-    const isPlayerTurn = !latestTurn
-        ? tokenData.playerColor === "white"
-        : latestTurn.color !== tokenData.playerColor;
-
-    if (isPlayerTurn) {
-        // Reset the move timer for this player
-        const newToken = updatePlayerMoveTime(token, game.timeControl);
-        return { newToken };
-    }
-
-    // No need to update timer, not player's turn
-    return { newToken: token };
 }

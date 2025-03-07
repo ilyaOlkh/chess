@@ -8,7 +8,7 @@ if (!process.env.UPSTASH_REDIS_URL) {
 const redisPublisher = new Redis(process.env.UPSTASH_REDIS_URL);
 const redisSubscriber = new Redis(process.env.UPSTASH_REDIS_URL);
 
-// Типы событий
+// Game event types
 export type GameEventType =
     | "player_joined"
     | "move_made"
@@ -39,27 +39,92 @@ export interface GameEvent {
     timestamp: number;
 }
 
-// Формирование имени канала
-export function getGameChannel(gameId: string): string {
-    return `game:${gameId}:events`;
+// Redis key structures
+const getGameChannel = (gameId: string): string => `game:${gameId}:events`;
+const getEventHistoryKey = (gameId: string): string =>
+    `game:${gameId}:event_history`;
+const getLastEventTimestampKey = (gameId: string): string =>
+    `game:${gameId}:lastEventTimestamp`;
+
+// How long to keep events in history (in seconds)
+const EVENT_HISTORY_TTL = 60 * 60; // 1 hour
+
+/**
+ * Gets the timestamp of the last event for a game
+ */
+export async function getLastEventTimestamp(gameId: string): Promise<number> {
+    const key = getLastEventTimestampKey(gameId);
+    const timestamp = await redisPublisher.get(key);
+    return timestamp ? parseInt(timestamp) : 0;
 }
 
 /**
- * Публикация события в канал игры
+ * Sets the timestamp of the last event for a game
+ */
+async function setLastEventTimestamp(
+    gameId: string,
+    timestamp: number
+): Promise<void> {
+    const key = getLastEventTimestampKey(gameId);
+    await redisPublisher.set(key, timestamp.toString());
+}
+
+/**
+ * Stores an event in the event history
+ */
+async function storeEventInHistory(event: GameEvent): Promise<void> {
+    const key = getEventHistoryKey(event.gameId);
+    await redisPublisher.zadd(key, event.timestamp, JSON.stringify(event));
+    // Set expiration on history to prevent unlimited growth
+    await redisPublisher.expire(key, EVENT_HISTORY_TTL);
+}
+
+/**
+ * Gets all events after a specific timestamp
+ */
+export async function getEventsSince(
+    gameId: string,
+    timestamp: number
+): Promise<GameEvent[]> {
+    const key = getEventHistoryKey(gameId);
+    const eventStrings = await redisPublisher.zrangebyscore(
+        key,
+        timestamp + 1,
+        "+inf"
+    );
+
+    if (!eventStrings || eventStrings.length === 0) {
+        return [];
+    }
+
+    return eventStrings.map((eventStr) => JSON.parse(eventStr) as GameEvent);
+}
+
+/**
+ * Publish an event to the game channel and store in history
  */
 export async function publishGameEvent(
     event: Omit<GameEvent, "timestamp">
 ): Promise<void> {
     const channel = getGameChannel(event.gameId);
+    const timestamp = Date.now();
     const fullEvent: GameEvent = {
         ...event,
-        timestamp: Date.now(),
+        timestamp,
     };
 
     console.log(`Publishing event to ${channel}:`, fullEvent);
 
     try {
+        // Publish to subscribers
         await redisPublisher.publish(channel, JSON.stringify(fullEvent));
+
+        // Store in event history
+        await storeEventInHistory(fullEvent);
+
+        // Update last event timestamp
+        await setLastEventTimestamp(event.gameId, timestamp);
+
         console.log(`Event published successfully to ${channel}`);
     } catch (error) {
         console.error(`Failed to publish event to ${channel}:`, error);
@@ -74,7 +139,7 @@ export function subscribeToGameEvents(
     const channel = getGameChannel(gameId);
     console.log(`Subscribing to game events on channel ${channel}`);
 
-    // Настраиваем обработчик сообщений
+    // Set up message handler
     redisSubscriber.on("message", (receivedChannel, message) => {
         if (receivedChannel === channel) {
             try {
@@ -90,7 +155,7 @@ export function subscribeToGameEvents(
         }
     });
 
-    // Подписываемся на канал
+    // Subscribe to channel
     redisSubscriber.subscribe(channel, (err) => {
         if (err) {
             console.error(`Error subscribing to channel ${channel}:`, err);
@@ -99,7 +164,7 @@ export function subscribeToGameEvents(
         }
     });
 
-    // Возвращаем функцию для отписки
+    // Return unsubscribe function
     return async () => {
         await redisSubscriber.unsubscribe(channel);
         console.log(`Unsubscribed from channel ${channel}`);
@@ -107,8 +172,8 @@ export function subscribeToGameEvents(
 }
 
 /**
- * Ожидание события в канале игры с таймаутом
- * Использует блокирующий подход для long polling
+ * Wait for a game event with timeout
+ * Uses a blocking approach for long polling
  */
 export function waitForGameEvent(
     gameId: string,
@@ -120,7 +185,7 @@ export function waitForGameEvent(
             `Waiting for event on channel ${channel} with timeout ${timeoutMs}ms`
         );
 
-        // Устанавливаем таймер для таймаута
+        // Set timeout timer
         const timeoutId = setTimeout(() => {
             unsubscribe().then(() => {
                 console.log(
@@ -130,7 +195,7 @@ export function waitForGameEvent(
             });
         }, timeoutMs);
 
-        // Подписываемся на канал и настраиваем обработчик
+        // Subscribe to channel and set up handler
         const unsubscribe = subscribeToGameEvents(gameId, (event) => {
             clearTimeout(timeoutId);
             unsubscribe().then(() => {
@@ -141,7 +206,7 @@ export function waitForGameEvent(
 }
 
 /**
- * Проверка наличия подписчиков в канале
+ * Check if there are subscribers to a channel
  */
 export async function hasSubscribers(gameId: string): Promise<boolean> {
     const channel = getGameChannel(gameId);
@@ -155,10 +220,10 @@ export async function hasSubscribers(gameId: string): Promise<boolean> {
 }
 
 /**
- * Инициализация событий для публикации в разных частях приложения
+ * Event publication functions for different parts of the application
  */
 
-// Публикация события при присоединении игрока
+// Publish player joined event
 export async function publishPlayerJoined(
     gameId: string,
     playerId: string,
@@ -174,7 +239,7 @@ export async function publishPlayerJoined(
     });
 }
 
-// Публикация события при выполнении хода
+// Publish move made event
 export async function publishMoveMade(
     gameId: string,
     turnId: string,
@@ -196,7 +261,7 @@ export async function publishMoveMade(
     });
 }
 
-// Публикация события при изменении статуса игры
+// Publish game status changed event
 export async function publishGameStatusChanged(
     gameId: string,
     status: string,
