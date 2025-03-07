@@ -446,7 +446,7 @@ const chessReducer = (
 type ChessContextType = {
     state: ChessGameState;
     selectPiece: (piece: ChessPiece | null) => void;
-    makeMove: (from: Square, to: Square) => void;
+    makeMove: (from: Square, to: Square) => { isPawnPromotion: boolean };
     resetGame: () => void;
     undoMove: () => void;
     setPosition: (fen: string) => void;
@@ -470,7 +470,11 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     const makeMove = (from: Square, to: Square) => {
+        const chess = new Chess(state.fenString);
+
         dispatch({ type: "MAKE_MOVE", payload: { from, to } });
+
+        return { isPawnPromotion: isPawnPromotion(chess, from, to) };
     };
 
     const resetGame = () => {

@@ -17,6 +17,7 @@ const ChessPiece: React.FC<ChessPieceComponentProps> = ({
     reversed = false,
 }) => {
     const { state } = useChessContext();
+
     const [renderPosition, setRenderPosition] = useState<CellPosition>(
         getInitRenderPosition(piece, position, state.currentMove, reversed)
     );
@@ -32,6 +33,10 @@ const ChessPiece: React.FC<ChessPieceComponentProps> = ({
             setIsAnimationFinished(true);
         }
     }, [isAnimationFinished, position, reversed]);
+
+    useEffect(() => {
+        setRenderPosition(reversePosition(position, reversed));
+    }, [position, reversed]);
 
     const handleClick = () => {
         if (onClick) {

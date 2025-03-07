@@ -6,10 +6,13 @@ export type PlayerRole = "first" | "second" | "spectator";
 
 export interface PlayerTokenPayload {
     gameId: string;
+    playerId: string;
     playerColor: PlayerColor | null; // Null for spectators
     playerRole: PlayerRole;
     issuedAt: number; // Unix timestamp
     moveTimeRemaining: number | null; // In seconds, null for spectators
+    iat?: number;
+    exp?: number;
 }
 
 // Get the secret from environment variables
@@ -22,9 +25,13 @@ const TOKEN_EXPIRATION = "12h";
  * Creates a JWT token for a player
  */
 export function createPlayerToken(payload: PlayerTokenPayload): string {
-    return jwt.sign(payload, JWT_SECRET, {
-        expiresIn: TOKEN_EXPIRATION,
-    });
+    if (!payload.exp)
+        return jwt.sign(payload, JWT_SECRET, {
+            expiresIn: TOKEN_EXPIRATION,
+        });
+    else {
+        return jwt.sign(payload, JWT_SECRET);
+    }
 }
 
 /**
@@ -84,7 +91,8 @@ export function generatePlayerJoinToken(
     gameId: string,
     isFirstPlayer: boolean,
     timeControl: number,
-    firstPlayerColor: PlayerColor
+    firstPlayerColor: PlayerColor,
+    playerId: string
 ): string {
     const playerRole: PlayerRole = isFirstPlayer ? "first" : "second";
 
@@ -97,6 +105,7 @@ export function generatePlayerJoinToken(
 
     const payload: PlayerTokenPayload = {
         gameId,
+        playerId,
         playerColor,
         playerRole,
         issuedAt: Math.floor(Date.now() / 1000),
@@ -110,8 +119,11 @@ export function generatePlayerJoinToken(
  * Generates a spectator token
  */
 export function generateSpectatorToken(gameId: string): string {
+    const spectatorId = crypto.randomUUID();
+
     const payload: PlayerTokenPayload = {
         gameId,
+        playerId: spectatorId,
         playerColor: null,
         playerRole: "spectator",
         issuedAt: Math.floor(Date.now() / 1000),

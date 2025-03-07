@@ -11,6 +11,7 @@ import {
     createTurn,
     getLatestTurn,
     getWaitingGames,
+    updateGame,
 } from "../redis/redis-setup";
 import {
     generatePlayerJoinToken,
@@ -29,10 +30,14 @@ export async function createNewGame(
 ): Promise<{
     gameId: string;
     playerToken: string;
+    playerId: string;
 }> {
     // Default starting FEN position
     const initialFen =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+    // Generate a unique player ID
+    const firstPlayerId = crypto.randomUUID();
 
     const gameData: GameData = {
         id: "",
@@ -40,6 +45,8 @@ export async function createNewGame(
         startDate: new Date().toISOString(),
         endDate: null,
         firstPlayerColor,
+        firstPlayerId, // Set the first player ID
+        secondPlayerId: null,
         status: "waiting",
         winner: null,
         timeControl,
@@ -52,10 +59,11 @@ export async function createNewGame(
         gameId,
         true,
         timeControl,
-        firstPlayerColor
+        firstPlayerColor,
+        firstPlayerId
     );
 
-    return { gameId, playerToken };
+    return { gameId, playerToken, playerId: firstPlayerId };
 }
 
 /**
@@ -63,30 +71,50 @@ export async function createNewGame(
  */
 export async function joinGame(gameId: string): Promise<{
     playerToken: string | null;
+    playerId: string | null;
     error?: string;
 }> {
     const game = await getGame(gameId);
 
     if (!game) {
-        return { playerToken: null, error: "Game not found" };
+        return { playerToken: null, playerId: null, error: "Game not found" };
     }
 
     if (game.status !== "waiting") {
-        return { playerToken: null, error: "Game is not in waiting status" };
+        return {
+            playerToken: null,
+            playerId: null,
+            error: "Game is not in waiting status",
+        };
     }
 
-    // Change game status to active
-    await updateGameStatus(gameId, "active");
+    if (game.secondPlayerId) {
+        return {
+            playerToken: null,
+            playerId: null,
+            error: "Game already has a second player",
+        };
+    }
+
+    // Generate a unique player ID for the second player
+    const secondPlayerId = crypto.randomUUID();
+
+    // Update game with the second player ID and change status to active
+    await updateGame(gameId, {
+        secondPlayerId,
+        status: "active",
+    });
 
     // Generate player token for the second player
     const playerToken = generatePlayerJoinToken(
         gameId,
         false,
         game.timeControl,
-        game.firstPlayerColor
+        game.firstPlayerColor,
+        secondPlayerId
     );
 
-    return { playerToken };
+    return { playerToken, playerId: secondPlayerId };
 }
 
 /**
@@ -183,10 +211,6 @@ export async function makeMove(
             return { success: false, error: "Invalid move" };
         }
 
-        // Move is valid, record it
-        const newFen = chess.fen();
-        await updateGameFen(gameId, newFen);
-
         // Record the turn
         const turnData: TurnData = {
             id: "",
@@ -213,6 +237,10 @@ export async function makeMove(
             gameResult = "draw";
             await updateGameStatus(gameId, "completed", gameResult);
         }
+
+        // Move is valid, record it
+        const newFen = chess.fen();
+        await updateGameFen(gameId, newFen);
 
         // Update the opponent's token with fresh move time
         // For simplicity, getting the new token requires a separate call

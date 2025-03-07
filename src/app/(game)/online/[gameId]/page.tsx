@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import ChessBoard from "@/components/chess/ChessBoard";
 import { Button } from "@/components/shadcn/Button";
 import {
@@ -8,72 +9,69 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
+    DialogFooter,
 } from "@/components/shadcn/Dialog";
 import { MoveData } from "@/types/chess-board";
 import { onlineGameText } from "@/constants/online-game";
-import { chessGameText } from "@/constants/chess-game";
 import { useCurrentUrl } from "@/hooks/useCurrentUrl";
+import { useOnlineGame } from "@/hooks/useOnlineGame";
 
-type GameStatus = "waiting" | "active" | "completed" | "aborted";
-type PlayerColor = "white" | "black";
-type PlayerRole = "first" | "second" | "spectator";
+export default function OnlineGame({
+    params,
+}: {
+    params: Promise<{ gameId: string }>;
+}) {
+    const { gameId } = use(params);
 
-interface OnlineGameState {
-    status: GameStatus;
-    playerColor: PlayerColor | null;
-    playerRole: PlayerRole;
-    opponentConnected: boolean;
-    lastMoveTime: number | null;
-}
+    const { gameState, makeMove } = useOnlineGame({ gameId: gameId });
 
-export default function OnlineGame() {
+    const router = useRouter();
     const currentUrl = useCurrentUrl();
-    const [gameState, setGameState] = useState<OnlineGameState>({
-        status: "waiting",
-        playerColor: "white",
-        playerRole: "first",
-        opponentConnected: false,
-        lastMoveTime: null,
-    });
+    const [showCopied, setShowCopied] = useState<boolean>(false);
+    const [showError, setShowError] = useState<boolean>(false);
+    const [isReadOnly, setIsReadOnly] = useState<boolean>(
+        gameState.playerRole === "spectator" || !gameState.isPlayerTurn
+    );
 
-    const [showCopied, setShowCopied] = useState(false);
+    const handleMove = async (moveData: MoveData) => {
+        setIsReadOnly(false);
+        console.log(1);
+        const success = await makeMove(moveData);
 
-    const handleMove = (moveData: MoveData) => {
-        console.log("Move made:", moveData);
-
-        if (gameState.status === "waiting") {
-            setGameState((prev) => ({
-                ...prev,
-                status: "active",
-                opponentConnected: true,
-                lastMoveTime: Date.now(),
-            }));
+        if (!success) {
+            setIsReadOnly(true);
         }
+
+        return success;
     };
 
     const copyInviteLink = () => {
-        const url = currentUrl;
-        navigator.clipboard.writeText(url);
+        navigator.clipboard.writeText(currentUrl);
         setShowCopied(true);
         setTimeout(() => setShowCopied(false), 2000);
     };
 
+    // Show error dialog if needed
     useEffect(() => {
-        const timer = setTimeout(() => {
-            if (gameState.status === "waiting") {
-                setGameState((prev) => ({
-                    ...prev,
-                    opponentConnected: true,
-                    status: "active",
-                }));
-            }
-        }, 5000);
+        if (gameState.error) {
+            setShowError(true);
+        }
+    }, [gameState.error]);
 
-        return () => clearTimeout(timer);
-    }, [gameState.status]);
+    // Determine board settings
+    const isPlayerWhite = gameState.playerColor === "white";
+    const isReversed = !isPlayerWhite; // Reverse board for black player
+
+    useEffect(() => {
+        setIsReadOnly(
+            gameState.playerRole === "spectator" || !gameState.isPlayerTurn
+        );
+    }, [gameState.playerRole, gameState.isPlayerTurn]);
 
     return (
         <>
+            {/* Waiting for opponent dialog */}
             <Dialog open={gameState.status === "waiting"}>
                 <DialogContent>
                     <DialogHeader>
@@ -105,21 +103,75 @@ export default function OnlineGame() {
                 </DialogContent>
             </Dialog>
 
+            {/* Error dialog */}
+            <Dialog open={showError}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="text-red-600">
+                            Error
+                        </DialogTitle>
+                    </DialogHeader>
+                    <DialogDescription>{gameState.error}</DialogDescription>
+                    <DialogFooter>
+                        <Button
+                            onClick={() => {
+                                setShowError(false);
+                                router.push("/");
+                            }}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        >
+                            Return to Home
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Game completed dialog */}
+            <Dialog open={gameState.status === "completed"}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="text-indigo-700">
+                            Game Over
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="mt-2">
+                        <p className="mb-3">
+                            {gameState.winner === "draw"
+                                ? "Game ended in a draw!"
+                                : gameState.winner === gameState.playerColor
+                                ? "You won the game!"
+                                : "You lost the game."}
+                        </p>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            onClick={() => router.push("/")}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        >
+                            Return to Home
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <div className="h-full">
                 <ChessBoard
-                    readOnly={
-                        gameState.playerColor !== "white" &&
-                        !gameState.opponentConnected
-                    }
+                    readOnly={isReadOnly}
                     onTurn={handleMove}
                     showControls={false}
                     showCapturedPieces={true}
                     showStatusBar={true}
                     className="h-[min(calc(100%-58px),calc(100vw-50px))]"
-                    reversed
+                    reversed={isReversed}
                     playerLabels={{
-                        whitePlayer: chessGameText.onlineFirstPlayer,
-                        blackPlayer: chessGameText.onlineSecondPlayer,
+                        whitePlayer:
+                            gameState.playerColor === "white"
+                                ? "You (White)"
+                                : "Opponent (White)",
+                        blackPlayer:
+                            gameState.playerColor === "black"
+                                ? "You (Black)"
+                                : "Opponent (Black)",
                     }}
                 />
             </div>

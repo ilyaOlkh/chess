@@ -1,6 +1,5 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { ChessBoardBaseProps } from "@/types/chess-board";
-import { ChessProvider } from "@/context/ChessContext";
 import { useChessContext } from "@/context/ChessContext";
 import { cn } from "@/utilities/cn";
 import ChessBoardBase from "./board/ChessBoardBase";
@@ -10,6 +9,7 @@ import { Button } from "@/components/shadcn/Button";
 interface EnhancedChessBoardProps extends ChessBoardBaseProps {
     showControls?: boolean;
     showStatusBar?: boolean;
+    fenPosition?: string;
 }
 
 const ChessBoardContent: React.FC<EnhancedChessBoardProps> = ({
@@ -20,12 +20,20 @@ const ChessBoardContent: React.FC<EnhancedChessBoardProps> = ({
     showControls = true,
     showCapturedPieces = true,
     showStatusBar = true,
+    fenPosition,
     playerLabels = {
         whitePlayer: chessGameText.localWhitePlayer,
         blackPlayer: chessGameText.localBlackPlayer,
     },
 }) => {
-    const { state, resetGame, undoMove } = useChessContext();
+    const { state, resetGame, undoMove, setPosition } = useChessContext();
+
+    // Apply external FEN position when it changes
+    useEffect(() => {
+        if (fenPosition && fenPosition !== state.fenString) {
+            setPosition(fenPosition);
+        }
+    }, [fenPosition, state.fenString, setPosition]);
 
     return (
         <div className="h-full flex flex-col md:flex-row">
@@ -91,11 +99,9 @@ const ChessBoardContent: React.FC<EnhancedChessBoardProps> = ({
 
 const ChessBoard: React.FC<EnhancedChessBoardProps> = (props) => {
     return (
-        <ChessProvider>
-            <div className={"h-full"}>
-                <ChessBoardContent {...props} />
-            </div>
-        </ChessProvider>
+        <div className={"h-full"}>
+            <ChessBoardContent {...props} />
+        </div>
     );
 };
 

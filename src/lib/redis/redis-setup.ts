@@ -1,9 +1,11 @@
 import { Redis } from "@upstash/redis";
+import {
+    publishGameStatusChanged,
+    publishPlayerJoined,
+    publishMoveMade,
+} from "./redis-pubsub";
 
-const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_URL || "",
-    token: process.env.UPSTASH_REDIS_TOKEN || "",
-});
+const redis = Redis.fromEnv();
 
 export type GameStatus = "waiting" | "active" | "completed" | "aborted";
 export type PlayerColor = "white" | "black";
@@ -17,6 +19,8 @@ export interface GameData extends WithIndexer {
     startDate: string;
     endDate: string | null;
     firstPlayerColor: PlayerColor;
+    firstPlayerId: string | null;
+    secondPlayerId: string | null;
     status: GameStatus;
     winner: Winner;
     timeControl: number;
@@ -61,6 +65,51 @@ export async function createGame(gameData: GameData): Promise<string> {
     }
 
     return gameId;
+}
+
+export async function updateGame(
+    gameId: string,
+    updateData: Partial<GameData>
+): Promise<void> {
+    const game = await getGame(gameId);
+
+    console.log(`Updating game ${gameId} with data:`, updateData);
+
+    if (!game) {
+        throw new Error(`Game with ID ${gameId} not found`);
+    }
+
+    // If we're updating status, handle the sets accordingly
+    if (updateData.status && updateData.status !== game.status) {
+        if (game.status === "waiting") {
+            await redis.srem(keyStructure.waitingGames, gameId);
+        } else if (game.status === "active") {
+            await redis.srem(keyStructure.activeGames, gameId);
+        }
+
+        if (updateData.status === "waiting") {
+            await redis.sadd(keyStructure.waitingGames, gameId);
+        } else if (updateData.status === "active") {
+            await redis.sadd(keyStructure.activeGames, gameId);
+        } else if (updateData.status === "completed") {
+            await redis.sadd(keyStructure.completedGames, gameId);
+        }
+
+        // Публикуем событие изменения статуса
+        await publishGameStatusChanged(
+            gameId,
+            updateData.status,
+            updateData.winner || game.winner
+        );
+    }
+
+    // Если добавляется второй игрок, публикуем событие
+    if (updateData.secondPlayerId && !game.secondPlayerId) {
+        await publishPlayerJoined(gameId, updateData.secondPlayerId, "second");
+    }
+
+    // Update the game data
+    await redis.hset(keyStructure.game(gameId), updateData);
 }
 
 export async function getGame(gameId: string): Promise<GameData | null> {
@@ -110,19 +159,73 @@ export async function updateGameFen(
 }
 
 export async function createTurn(turnData: TurnData): Promise<string> {
+    // Генерируем уникальный ID для хода
     const turnId = crypto.randomUUID();
+    console.log(
+        `Creating turn with ID: ${turnId} for game: ${turnData.gameId}`
+    );
 
+    // Добавляем ID в данные хода
     const turn: TurnData = {
         ...turnData,
         id: turnId,
     };
 
-    await redis.hset(keyStructure.turn(turnId), turn);
+    console.log(`Turn data to save: ${JSON.stringify(turn)}`);
 
-    await redis.zadd(keyStructure.gameTurns(turn.gameId), {
-        score: new Date(turn.createTime).getTime(),
+    // Сохраняем данные хода в хеш-таблицу
+    const turnKey = keyStructure.turn(turnId);
+    console.log(`Saving turn data to hash key: ${turnKey}`);
+
+    // Преобразуем объект в плоский формат для hset
+    const flatTurnData: Record<string, string> = {};
+    for (const [key, value] of Object.entries(turn)) {
+        flatTurnData[key] = value === null ? "" : String(value);
+    }
+
+    // Сохраняем данные
+    await redis.hset(turnKey, flatTurnData);
+
+    // Проверяем сохранение
+    const savedData = await redis.hgetall(turnKey);
+    console.log(`Verification - saved turn data: ${JSON.stringify(savedData)}`);
+
+    // Добавляем ID хода в отсортированный набор с timestamp в качестве score
+    const turnsKey = keyStructure.gameTurns(turn.gameId);
+    console.log(`Adding turn ID to sorted set key: ${turnsKey}`);
+
+    const score = new Date(turn.createTime).getTime();
+    console.log(`Using score (timestamp): ${score}`);
+
+    await redis.zadd(turnsKey, {
+        score: score,
         member: turnId,
     });
+
+    // Проверяем добавление в sorted set
+    const members = await redis.zrange(turnsKey, -1, -1);
+    console.log(
+        `Verification - latest member in sorted set: ${JSON.stringify(members)}`
+    );
+
+    // Публикуем событие хода
+    try {
+        // Получаем текущую FEN позицию игры
+        const game = await getGame(turn.gameId);
+        if (game) {
+            await publishMoveMade(
+                turn.gameId,
+                turnId,
+                turn.from,
+                turn.to,
+                turn.color,
+                game.currentFen
+            );
+        }
+    } catch (error) {
+        console.error(`Error publishing move event: ${error}`);
+        // Не даем ошибке прервать основной процесс
+    }
 
     return turnId;
 }
@@ -149,18 +252,49 @@ export async function getGameTurns(gameId: string): Promise<TurnData[]> {
 }
 
 export async function getLatestTurn(gameId: string): Promise<TurnData | null> {
-    const turnIds: string[] = await redis.zrange(
-        keyStructure.gameTurns(gameId),
-        -1,
-        -1
-    );
+    // Детальное логирование
+    console.log(`Getting latest turn for game: ${gameId}`);
+
+    // Формируем ключ для Sorted Set ходов
+    const turnsKey = keyStructure.gameTurns(gameId);
+    console.log(`Looking up in sorted set key: ${turnsKey}`);
+
+    // Получаем ID последнего хода (индекс -1 в Redis означает последний элемент)
+    const turnIds: string[] = await redis.zrange(turnsKey, -1, -1);
+    console.log(`Found turn IDs: ${JSON.stringify(turnIds)}`);
 
     if (!turnIds.length) {
+        console.log(`No turns found for game ${gameId}`);
         return null;
     }
 
-    const turnData = await redis.hgetall(keyStructure.turn(turnIds[0]));
-    return (turnData as TurnData) || null;
+    // Формируем ключ для хеша с данными хода
+    const turnKey = keyStructure.turn(turnIds[0]);
+    console.log(`Fetching turn data from hash key: ${turnKey}`);
+
+    // Получаем все поля хеша
+    const turnData = await redis.hgetall(turnKey);
+    console.log(`Raw turn data from Redis: ${JSON.stringify(turnData)}`);
+
+    // Проверяем типы данных
+    if (turnData && typeof turnData === "object") {
+        // Преобразуем данные в правильный формат, если нужно
+        const typedTurnData: TurnData = {
+            id: String(turnData.id || ""),
+            gameId: String(turnData.gameId || ""),
+            from: String(turnData.from || ""),
+            to: String(turnData.to || ""),
+            createTime: String(turnData.createTime || new Date().toISOString()),
+            color: (turnData.color as PlayerColor) || "white",
+            promotionPiece: (turnData.promotionPiece as string | null) || null,
+        };
+
+        console.log(`Typed turn data: ${JSON.stringify(typedTurnData)}`);
+        return typedTurnData;
+    }
+
+    console.log(`No valid turn data found or invalid format`);
+    return null;
 }
 
 export async function getWaitingGames(): Promise<GameData[]> {

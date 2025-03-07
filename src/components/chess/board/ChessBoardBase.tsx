@@ -42,9 +42,9 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
                 const from = positionToAlgebraic(state.selectedPiece.position);
                 const to = positionToAlgebraic(piece.position);
                 if (isValidMove(state, to)) {
-                    makeMove(from, to);
-
-                    if (onTurn) {
+                    const { isPawnPromotion } = makeMove(from, to);
+                    console.log(isPawnPromotion);
+                    if (onTurn && !isPawnPromotion) {
                         onTurn({
                             from,
                             to,
@@ -64,9 +64,9 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
             const to = positionToAlgebraic(position);
 
             if (isValidMove(state, to)) {
-                makeMove(from, to);
-
-                if (onTurn) {
+                const { isPawnPromotion } = makeMove(from, to);
+                console.log(isPawnPromotion);
+                if (onTurn && !isPawnPromotion) {
                     onTurn({
                         from,
                         to,
@@ -106,6 +106,7 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
             onTurn({
                 from,
                 to,
+                promotion: pieceType,
                 fen: state.fenString,
             });
         }
@@ -120,7 +121,7 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
     const displayFiles = reversed
         ? [...chessBoard.files].reverse()
         : [...chessBoard.files];
-    console.log(state.board);
+
     return (
         <div className={"h-full relative flex flex-col"}>
             {/* Black player info with captured white pieces */}

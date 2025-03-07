@@ -11,23 +11,41 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useState } from "react";
+import { createGame } from "@/services/longPollingService";
 
 export default function Home() {
     const router = useRouter();
     const [isCreatingGame, setIsCreatingGame] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleCreateOnlineGame = async () => {
         try {
             setIsCreatingGame(true);
+            setError(null);
 
-            // При реальной реализации здесь будет запрос к API для создания игры
-            // Сейчас просто генерируем фейковый UUID для демонстрации
-            const gameId = crypto.randomUUID();
+            // Create a new game
+            const response = await createGame();
 
-            // Перенаправляем пользователя на страницу игры
-            router.push(`/online/${gameId}`);
+            if (response.gameId) {
+                // Save the token to localStorage
+                localStorage.setItem(
+                    `chess_token_${response.gameId}`,
+                    response.playerToken
+                );
+
+                // Redirect to the game page
+                router.push(`/online/${response.gameId}`);
+            } else {
+                setError("Failed to create game");
+                setIsCreatingGame(false);
+            }
         } catch (error) {
-            console.error("Ошибка при создании игры:", error);
+            console.error("Error creating game:", error);
+            setError(
+                error instanceof Error
+                    ? error.message
+                    : "An unknown error occurred"
+            );
             setIsCreatingGame(false);
         }
     };
@@ -76,6 +94,12 @@ export default function Home() {
                     >
                         <Link href="/local">Грати на одному пристрої</Link>
                     </Button>
+
+                    {error && (
+                        <div className="text-red-500 text-center mt-4">
+                            {error}
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

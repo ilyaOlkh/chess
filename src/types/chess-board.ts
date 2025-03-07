@@ -15,6 +15,7 @@ export interface ChessBoardBaseProps {
     }) => void;
     showCapturedPieces?: boolean;
     playerLabels?: PlayerLabels;
+    fenPosition?: string;
 }
 
 export interface PlayerLabels {
