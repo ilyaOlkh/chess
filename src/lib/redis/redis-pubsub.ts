@@ -113,8 +113,6 @@ export async function publishGameEvent(
         timestamp,
     };
 
-    console.log(`Publishing event to ${channel}:`, fullEvent);
-
     try {
         // Publish to subscribers
         await redisPublisher.publish(channel, JSON.stringify(fullEvent));
@@ -124,10 +122,7 @@ export async function publishGameEvent(
 
         // Update last event timestamp
         await setLastEventTimestamp(event.gameId, timestamp);
-
-        console.log(`Event published successfully to ${channel}`);
     } catch (error) {
-        console.error(`Failed to publish event to ${channel}:`, error);
         throw error;
     }
 }
@@ -137,14 +132,12 @@ export function subscribeToGameEvents(
     callback: (event: GameEvent) => void
 ): () => Promise<void> {
     const channel = getGameChannel(gameId);
-    console.log(`Subscribing to game events on channel ${channel}`);
 
     // Set up message handler
     redisSubscriber.on("message", (receivedChannel, message) => {
         if (receivedChannel === channel) {
             try {
                 const event = JSON.parse(message) as GameEvent;
-                console.log(`Received event on channel ${channel}:`, event);
                 callback(event);
             } catch (error) {
                 console.error(
@@ -159,15 +152,12 @@ export function subscribeToGameEvents(
     redisSubscriber.subscribe(channel, (err) => {
         if (err) {
             console.error(`Error subscribing to channel ${channel}:`, err);
-        } else {
-            console.log(`Successfully subscribed to channel ${channel}`);
         }
     });
 
     // Return unsubscribe function
     return async () => {
         await redisSubscriber.unsubscribe(channel);
-        console.log(`Unsubscribed from channel ${channel}`);
     };
 }
 
@@ -181,16 +171,10 @@ export function waitForGameEvent(
 ): Promise<GameEvent | null> {
     return new Promise((resolve) => {
         const channel = getGameChannel(gameId);
-        console.log(
-            `Waiting for event on channel ${channel} with timeout ${timeoutMs}ms`
-        );
 
         // Set timeout timer
         const timeoutId = setTimeout(() => {
             unsubscribe().then(() => {
-                console.log(
-                    `Timeout reached while waiting for event on channel ${channel}`
-                );
                 resolve(null);
             });
         }, timeoutMs);

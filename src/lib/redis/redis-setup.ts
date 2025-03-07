@@ -73,8 +73,6 @@ export async function updateGame(
 ): Promise<void> {
     const game = await getGame(gameId);
 
-    console.log(`Updating game ${gameId} with data:`, updateData);
-
     if (!game) {
         throw new Error(`Game with ID ${gameId} not found`);
     }
@@ -161,9 +159,6 @@ export async function updateGameFen(
 export async function createTurn(turnData: TurnData): Promise<string> {
     // Генерируем уникальный ID для хода
     const turnId = crypto.randomUUID();
-    console.log(
-        `Creating turn with ID: ${turnId} for game: ${turnData.gameId}`
-    );
 
     // Добавляем ID в данные хода
     const turn: TurnData = {
@@ -171,11 +166,8 @@ export async function createTurn(turnData: TurnData): Promise<string> {
         id: turnId,
     };
 
-    console.log(`Turn data to save: ${JSON.stringify(turn)}`);
-
     // Сохраняем данные хода в хеш-таблицу
     const turnKey = keyStructure.turn(turnId);
-    console.log(`Saving turn data to hash key: ${turnKey}`);
 
     // Преобразуем объект в плоский формат для hset
     const flatTurnData: Record<string, string> = {};
@@ -186,27 +178,15 @@ export async function createTurn(turnData: TurnData): Promise<string> {
     // Сохраняем данные
     await redis.hset(turnKey, flatTurnData);
 
-    // Проверяем сохранение
-    const savedData = await redis.hgetall(turnKey);
-    console.log(`Verification - saved turn data: ${JSON.stringify(savedData)}`);
-
     // Добавляем ID хода в отсортированный набор с timestamp в качестве score
     const turnsKey = keyStructure.gameTurns(turn.gameId);
-    console.log(`Adding turn ID to sorted set key: ${turnsKey}`);
 
     const score = new Date(turn.createTime).getTime();
-    console.log(`Using score (timestamp): ${score}`);
 
     await redis.zadd(turnsKey, {
         score: score,
         member: turnId,
     });
-
-    // Проверяем добавление в sorted set
-    const members = await redis.zrange(turnsKey, -1, -1);
-    console.log(
-        `Verification - latest member in sorted set: ${JSON.stringify(members)}`
-    );
 
     // Публикуем событие хода
     try {
@@ -253,28 +233,22 @@ export async function getGameTurns(gameId: string): Promise<TurnData[]> {
 
 export async function getLatestTurn(gameId: string): Promise<TurnData | null> {
     // Детальное логирование
-    console.log(`Getting latest turn for game: ${gameId}`);
 
     // Формируем ключ для Sorted Set ходов
     const turnsKey = keyStructure.gameTurns(gameId);
-    console.log(`Looking up in sorted set key: ${turnsKey}`);
 
     // Получаем ID последнего хода (индекс -1 в Redis означает последний элемент)
     const turnIds: string[] = await redis.zrange(turnsKey, -1, -1);
-    console.log(`Found turn IDs: ${JSON.stringify(turnIds)}`);
 
     if (!turnIds.length) {
-        console.log(`No turns found for game ${gameId}`);
         return null;
     }
 
     // Формируем ключ для хеша с данными хода
     const turnKey = keyStructure.turn(turnIds[0]);
-    console.log(`Fetching turn data from hash key: ${turnKey}`);
 
     // Получаем все поля хеша
     const turnData = await redis.hgetall(turnKey);
-    console.log(`Raw turn data from Redis: ${JSON.stringify(turnData)}`);
 
     // Проверяем типы данных
     if (turnData && typeof turnData === "object") {
@@ -289,11 +263,9 @@ export async function getLatestTurn(gameId: string): Promise<TurnData | null> {
             promotionPiece: (turnData.promotionPiece as string | null) || null,
         };
 
-        console.log(`Typed turn data: ${JSON.stringify(typedTurnData)}`);
         return typedTurnData;
     }
 
-    console.log(`No valid turn data found or invalid format`);
     return null;
 }
 

@@ -44,7 +44,6 @@ export async function POST(
 
         const chess = new Chess(game.currentFen);
         const currentTurn = chess.turn() === "w" ? "white" : "black";
-        console.log(tokenData, currentTurn);
         const isPlayerTurn =
             tokenData?.playerRole !== "spectator" &&
             tokenData?.playerColor === currentTurn;

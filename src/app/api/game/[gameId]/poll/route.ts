@@ -73,7 +73,6 @@ export async function GET(
 ) {
     // Get gameId from route parameters
     const { gameId } = await params;
-    console.log(`Long polling request for game ${gameId}`);
 
     try {
         // Check authorization
@@ -161,10 +160,6 @@ export async function GET(
         );
 
         if (missedEvents.length > 0) {
-            console.log(
-                `Found ${missedEvents.length} missed events for game ${gameId}`
-            );
-
             // Initialize state with current game data
             const state: GameState = {
                 currentFen: game.currentFen,
@@ -243,12 +238,9 @@ export async function GET(
         }
 
         // Wait for new event using Redis Pub/Sub
-        console.log(`Waiting for new events for game ${gameId}`);
         const event = await waitForGameEvent(gameId, LONG_POLL_TIMEOUT);
 
         if (event) {
-            console.log(`Received event for game ${gameId}:`, event);
-
             // Reload game data after event
             game = await getGame(gameId);
             if (!game) {
@@ -300,7 +292,6 @@ export async function GET(
 
                     // Update chess logic with new position
                     const newChess = new Chess(game.currentFen);
-                    console.log(game.currentFen);
                     const newCurrentTurn =
                         newChess.turn() === "w" ? "white" : "black";
 

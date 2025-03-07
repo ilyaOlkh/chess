@@ -42,7 +42,6 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
                 const from = positionToAlgebraic(state.selectedPiece.position);
                 const to = positionToAlgebraic(piece.position);
                 if (isValidMove(state, to)) {
-                    console.log(1);
                     const { isPawnPromotion } = makeMove(from, to);
 
                     if (onTurn && !isPawnPromotion) {
@@ -65,9 +64,7 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
             const to = positionToAlgebraic(position);
 
             if (isValidMove(state, to)) {
-                console.log(2);
                 const { isPawnPromotion } = makeMove(from, to);
-                console.log(isPawnPromotion);
                 if (onTurn && !isPawnPromotion) {
                     onTurn({
                         from,
@@ -117,7 +114,6 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
     }
 
     function isCurrentMoveSquare(colIndex: number, rowIndex: number) {
-        console.log(state.currentMove, colIndex, rowIndex);
         return (
             (state.currentMove?.from.row === rowIndex &&
                 state.currentMove?.from.col === colIndex) ||

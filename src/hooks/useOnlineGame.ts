@@ -118,8 +118,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
 
         const initializeGame = async () => {
             try {
-                console.log("Initializing game:", gameId);
-
                 // Проверяем, есть ли сохраненный токен для этой игры
                 const savedToken = localStorage.getItem(
                     `chess_token_${gameId}`
@@ -155,8 +153,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                             (response.gameStatus as GameStatus) || "waiting",
                         opponentConnected: response.opponentConnected || false,
                     }));
-
-                    console.log("Connected to game as:", response.playerRole);
                 }
 
                 if (response.fenPosition) {
@@ -184,8 +180,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
     useEffect(() => {
         if (!playerToken || !gameId || !initialized) return;
 
-        console.log("Starting long polling for game:", gameId);
-
         const pollingController = startLongPolling({
             gameId,
             playerToken,
@@ -211,7 +205,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
         });
 
         return () => {
-            console.log("Stopping long polling for game:", gameId);
             pollingController.stopPolling();
         };
     }, [gameId, playerToken, initialized, handleGameUpdate]);
@@ -225,7 +218,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
             }
 
             try {
-                console.log("Making move:", moveData);
                 const response = await makeOnlineMove(
                     gameId,
                     playerToken,
@@ -258,7 +250,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
     // Функция для создания новой игры
     const createNewGame = useCallback(async (timeControl: number = 300) => {
         try {
-            console.log("Creating new game with time control:", timeControl);
             const response = await createGame(timeControl);
 
             if (!response.gameId || !response.playerToken) {
@@ -271,7 +262,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                 response.playerToken
             );
 
-            console.log("Game created:", response.gameId);
             return response.gameId;
         } catch (error) {
             console.error("Error creating game:", error);
