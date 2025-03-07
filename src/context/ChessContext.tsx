@@ -208,6 +208,8 @@ const chessReducer = (
                 type: moveType,
                 movements,
                 notation: moveDetails.san,
+                from: algebraicToPosition(from),
+                to: algebraicToPosition(to),
             };
 
             const capturedPieces = { ...state.capturedPieces };
@@ -304,6 +306,8 @@ const chessReducer = (
                 type: moveType,
                 movements,
                 notation: moveDetails.san,
+                from: algebraicToPosition(from),
+                to: algebraicToPosition(to),
             };
 
             const capturedPieces = { ...state.capturedPieces };

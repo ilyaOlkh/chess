@@ -37,6 +37,8 @@ export interface ChessMove {
     movements: PieceMovement[];
     notation: string;
     capturedPiece?: ChessPiece;
+    from: CellPosition;
+    to: CellPosition;
 }
 
 export interface ChessGameState {

@@ -116,6 +116,16 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
         promotePawn(pieceType);
     }
 
+    function isCurrentMoveSquare(colIndex: number, rowIndex: number) {
+        console.log(state.currentMove, colIndex, rowIndex);
+        return (
+            (state.currentMove?.from.row === rowIndex &&
+                state.currentMove?.from.col === colIndex) ||
+            (state.currentMove?.to.row === rowIndex &&
+                state.currentMove?.to.col === colIndex)
+        );
+    }
+
     // Подготавливаем ранги и файлы с учетом поворота доски
     const displayRanks = reversed
         ? [...chessBoard.ranks]
@@ -184,6 +194,12 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
                                             })
                                         }
                                     >
+                                        {isCurrentMoveSquare(
+                                            boardCol,
+                                            boardRow
+                                        ) && (
+                                            <div className="absolute top-0 left-0 w-full h-full bg-yellow-100/75"></div>
+                                        )}
                                         {rowIndex === chessBoard.size - 1 && (
                                             <span
                                                 className={cn(
