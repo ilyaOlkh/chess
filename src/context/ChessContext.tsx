@@ -1,6 +1,11 @@
 "use client";
 
-import React, { createContext, useContext, useReducer } from "react";
+import React, {
+    createContext,
+    useCallback,
+    useContext,
+    useReducer,
+} from "react";
 import { Chess, Square, Move } from "chess.js";
 import {
     ChessGameState,
@@ -465,40 +470,41 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
         createInitialState
     );
 
-    const selectPiece = (piece: ChessPiece | null) => {
+    const selectPiece = useCallback((piece: ChessPiece | null) => {
         dispatch({ type: "SELECT_PIECE", payload: piece });
-    };
+    }, []);
 
-    const makeMove = (from: Square, to: Square) => {
-        const chess = new Chess(state.fenString);
+    const makeMove = useCallback(
+        (from: Square, to: Square) => {
+            const chess = new Chess(state.fenString);
+            dispatch({ type: "MAKE_MOVE", payload: { from, to } });
+            return { isPawnPromotion: isPawnPromotion(chess, from, to) };
+        },
+        [state.fenString]
+    );
 
-        dispatch({ type: "MAKE_MOVE", payload: { from, to } });
-
-        return { isPawnPromotion: isPawnPromotion(chess, from, to) };
-    };
-
-    const resetGame = () => {
+    const resetGame = useCallback(() => {
         dispatch({ type: "RESET_GAME" });
-    };
+    }, []);
 
-    const undoMove = () => {
+    const undoMove = useCallback(() => {
         dispatch({ type: "UNDO_MOVE" });
-    };
+    }, []);
 
-    const setPosition = (fen: string) => {
+    const setPosition = useCallback((fen: string) => {
         dispatch({ type: "SET_POSITION", payload: fen });
-    };
+    }, []);
 
-    const promotePawn = (pieceType: PieceType) => {
+    const promotePawn = useCallback((pieceType: PieceType) => {
         dispatch({
             type: "COMPLETE_PROMOTION",
             payload: { promotion: pieceType },
         });
-    };
+    }, []);
 
-    const cancelPromotion = () => {
+    const cancelPromotion = useCallback(() => {
         dispatch({ type: "SET_PENDING_PROMOTION", payload: null });
-    };
+    }, []);
 
     return (
         <ChessContext.Provider

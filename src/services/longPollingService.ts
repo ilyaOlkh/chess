@@ -26,6 +26,11 @@ export interface LongPollResponse {
     playerToken?: string;
 }
 
+const longPollingConstants = {
+    retryDelay: 1000,
+    gatewayTimeoutStatus: 504,
+};
+
 export interface LongPollOptions {
     onSuccess: (data: LongPollResponse) => void;
     onError: (error: Error) => void;
@@ -61,11 +66,17 @@ LongPollOptions): { stopPolling: () => void } {
                     Authorization: `Bearer ${playerToken}`,
                 },
                 signal,
-                // Long polling request with timeout
                 cache: "no-store",
             });
 
             if (!isPolling) return;
+
+            // Handle game completion by status code first
+            if (response.status === longPollingConstants.gatewayTimeoutStatus) {
+                // Gateway timeout, just retry
+                setTimeout(poll, longPollingConstants.retryDelay);
+                return;
+            }
 
             if (!response.ok) {
                 const error = await response.json();
@@ -75,19 +86,41 @@ LongPollOptions): { stopPolling: () => void } {
             }
 
             const data: LongPollResponse = await response.json();
+
+            // Check if the game has been completed or aborted
+            if (
+                data.gameStatus === "completed" ||
+                data.gameStatus === "aborted"
+            ) {
+                // Process this final state update
+                onSuccess(data);
+                // Stop polling after game completion
+                isPolling = false;
+                return;
+            }
+
+            // Continue with normal processing
             onSuccess(data);
+
+            // Continue polling
+            if (isPolling) {
+                setTimeout(poll, longPollingConstants.retryDelay);
+            }
         } catch (error) {
             if (!isPolling) return;
 
             // Don't report abort errors
             if (error instanceof Error && error.name !== "AbortError") {
-                onError(error as Error);
+                onError(error);
             }
-        } finally {
-            // Continue polling with a small delay to prevent overwhelming the server
-            // in case of quick errors
-            if (isPolling) {
-                setTimeout(poll, 1000);
+
+            // Continue polling even after errors (unless it's an abort)
+            if (
+                isPolling &&
+                error instanceof Error &&
+                error.name !== "AbortError"
+            ) {
+                setTimeout(poll, longPollingConstants.retryDelay);
             }
         }
     };
