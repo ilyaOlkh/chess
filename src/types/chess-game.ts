@@ -4,6 +4,7 @@ import { ValidMove } from "./chess-move";
 import { PendingPromotion } from "./promotion";
 
 export type PieceType = "p" | "n" | "b" | "r" | "q" | "k";
+export type PromotionPieceType = "q" | "r" | "b" | "n";
 export type PieceColor = "w" | "b";
 
 export interface ChessPiece {

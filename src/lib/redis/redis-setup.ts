@@ -33,7 +33,7 @@ export interface TurnData extends WithIndexer {
     to: string;
     createTime: string;
     color: PlayerColor;
-    promotionPiece: string | null;
+    promotion?: string;
 }
 
 const keyStructure = {
@@ -199,7 +199,8 @@ export async function createTurn(turnData: TurnData): Promise<string> {
                 turn.from,
                 turn.to,
                 turn.color,
-                game.currentFen
+                game.currentFen,
+                turn.promotion
             );
         }
     } catch (error) {

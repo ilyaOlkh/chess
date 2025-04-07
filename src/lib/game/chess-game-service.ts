@@ -1,4 +1,4 @@
-import { Chess, Square } from "chess.js";
+import { Chess } from "chess.js";
 import {
     GameData,
     TurnData,
@@ -142,7 +142,7 @@ export async function makeMove(
     token: string,
     from: string,
     to: string,
-    promotionPiece: string | null = null
+    promotion?: string
 ): Promise<{
     success: boolean;
     error?: string;
@@ -201,9 +201,9 @@ export async function makeMove(
     // Try to make the move
     try {
         const moveResult = chess.move({
-            from: from as Square,
-            to: to as Square,
-            promotion: (promotionPiece as "q" | "r" | "b" | "n") || undefined,
+            from: from,
+            to: to,
+            promotion: promotion,
         });
 
         if (!moveResult) {
@@ -236,7 +236,7 @@ export async function makeMove(
             to,
             createTime: new Date().toISOString(),
             color: currentTurn,
-            promotionPiece,
+            promotion: promotion,
         };
 
         await createTurn(turnData);

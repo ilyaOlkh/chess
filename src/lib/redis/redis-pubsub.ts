@@ -25,6 +25,7 @@ interface MoveMadeData {
     to: string;
     color: string;
     fen: string;
+    promotion?: string;
 }
 
 interface GameStatusChangedData {
@@ -228,7 +229,8 @@ export async function publishMoveMade(
     from: string,
     to: string,
     color: string,
-    fen: string
+    fen: string,
+    promotion?: string
 ): Promise<void> {
     await publishGameEvent({
         type: "move_made",
@@ -239,6 +241,7 @@ export async function publishMoveMade(
             to,
             color,
             fen,
+            promotion,
         },
     });
 }

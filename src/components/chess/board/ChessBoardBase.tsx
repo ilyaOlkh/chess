@@ -101,7 +101,6 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
             const from = state.pendingPromotion.from;
             const to = state.pendingPromotion.to;
 
-            // Вызываем колбек с информацией о продвижении пешки
             onTurn({
                 from,
                 to,
@@ -122,7 +121,6 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
         );
     }
 
-    // Подготавливаем ранги и файлы с учетом поворота доски
     const displayRanks = reversed
         ? [...chessBoard.ranks]
         : [...chessBoard.ranks].reverse();
@@ -142,8 +140,8 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
                     <CapturedPieces
                         pieces={
                             reversed
-                                ? state.capturedPieces.w
-                                : state.capturedPieces.b
+                                ? state.capturedPieces.b
+                                : state.capturedPieces.w
                         }
                     />
                 </div>
@@ -326,8 +324,8 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
                     <CapturedPieces
                         pieces={
                             reversed
-                                ? state.capturedPieces.b
-                                : state.capturedPieces.w
+                                ? state.capturedPieces.w
+                                : state.capturedPieces.b
                         }
                     />
                 </div>

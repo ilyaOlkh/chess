@@ -1,18 +1,25 @@
-import { PieceType } from "@/types/chess-game";
+import { PieceColor, PieceType, PromotionPieceType } from "@/types/chess-game";
 
 export const promotionConstants = {
     availablePieces: ["q", "r", "b", "n"] as PieceType[],
 };
 
+export const pieceNames = {
+    w: {
+        q: "Білий ферзь",
+        r: "Біла тура",
+        b: "Білий слон",
+        n: "Білий кінь",
+    },
+    b: {
+        q: "Чорний ферзь",
+        r: "Чорна тура",
+        b: "Чорний слон",
+        n: "Чорний кінь",
+    },
+} as const;
+
 export const promotionText = {
-    pieceAltText: (color: string, type: string): string =>
-        `${color === "w" ? "Белая" : "Черная"} ${
-            type === "q"
-                ? "ферзь"
-                : type === "r"
-                ? "ладья"
-                : type === "b"
-                ? "слон"
-                : "конь"
-        }`,
+    pieceAltText: (color: PieceColor, type: PromotionPieceType): string =>
+        pieceNames[color][type],
 };

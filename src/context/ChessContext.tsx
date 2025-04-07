@@ -19,7 +19,11 @@ import {
 } from "@/types/chess-game";
 import { ValidMove } from "@/types/chess-move";
 import { chessGameConstants } from "@/constants/chess-game";
-import { algebraicToPosition, positionToAlgebraic } from "@/utilities/chess";
+import {
+    algebraicToPosition,
+    getCapturedPieces,
+    positionToAlgebraic,
+} from "@/utilities/chess";
 import { cellSize } from "@/constants/chess-board";
 import { PendingPromotion } from "@/types/promotion";
 
@@ -432,10 +436,7 @@ const chessReducer = (
                     selectedPiece: null,
                     validMoves: [],
                     moveHistory: [],
-                    capturedPieces: {
-                        w: [],
-                        b: [],
-                    },
+                    capturedPieces: getCapturedPieces(chess),
                     currentMove: null,
                     animatingPieces: new Map(),
                     pendingPromotion: null,

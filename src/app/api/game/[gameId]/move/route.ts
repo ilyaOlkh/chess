@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Make the move using the game service
-        const result = await makeMove(token, from, to, promotion || null);
+        const result = await makeMove(token, from, to, promotion);
 
         // Handle move result
         if (!result.success) {
