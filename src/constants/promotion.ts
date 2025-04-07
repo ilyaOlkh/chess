@@ -1,7 +1,7 @@
-import { PieceColor, PieceType, PromotionPieceType } from "@/types/chess-game";
+import { PieceColor, PromotionPieceType } from "@/types/chess-game";
 
 export const promotionConstants = {
-    availablePieces: ["q", "r", "b", "n"] as PieceType[],
+    availablePieces: ["q", "r", "b", "n"] as PromotionPieceType[],
 };
 
 export const pieceNames = {

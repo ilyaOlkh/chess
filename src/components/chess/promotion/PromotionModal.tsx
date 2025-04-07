@@ -3,11 +3,15 @@ import Image from "next/image";
 import { getPiecePath } from "@/types/chess-piece";
 import { cn } from "@/utilities/cn";
 import { promotionConstants, promotionText } from "@/constants/promotion";
-import { ChessPieceSimple, PieceColor, PieceType } from "@/types/chess-game";
+import {
+    ChessPieceSimple,
+    PieceColor,
+    PromotionPieceType,
+} from "@/types/chess-game";
 
 export interface PromotionModalProps {
     color: PieceColor;
-    onSelect: (pieceType: PieceType) => void;
+    onSelect: (pieceType: PromotionPieceType) => void;
     position: {
         top: number;
         left: number;
