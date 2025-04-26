@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useState } from "react";
 import { createGame } from "@/services/longPollingService";
+import { menuButtonsText } from "@/constants/menu";
 
 export default function Home() {
     const router = useRouter();
@@ -23,17 +24,14 @@ export default function Home() {
             setIsCreatingGame(true);
             setError(undefined);
 
-            // Create a new game
             const response = await createGame();
 
             if (response.gameId) {
-                // Save the token to localStorage
                 localStorage.setItem(
                     `chess_token_${response.gameId}`,
                     response.playerToken
                 );
 
-                // Redirect to the game page
                 router.push(`/online/${response.gameId}`);
             } else {
                 setError("Failed to create game");
@@ -75,7 +73,7 @@ export default function Home() {
                         disabled
                         title="Ця функція буде доступна в майбутніх оновленнях"
                     >
-                        Грати з ШІ
+                        {menuButtonsText.playWithAi}
                     </Button>
 
                     <Button
@@ -84,7 +82,9 @@ export default function Home() {
                         onClick={handleCreateOnlineGame}
                         disabled={isCreatingGame}
                     >
-                        {isCreatingGame ? "Створення гри..." : "Грати онлайн"}
+                        {isCreatingGame
+                            ? "Створення гри..."
+                            : menuButtonsText.playOnline}
                     </Button>
 
                     <Button
@@ -92,7 +92,9 @@ export default function Home() {
                         variant="chess"
                         asChild
                     >
-                        <Link href="/local">Грати на одному пристрої</Link>
+                        <Link href="/local">
+                            {menuButtonsText.playWithFriend}
+                        </Link>
                     </Button>
 
                     {error && (

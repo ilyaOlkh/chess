@@ -17,6 +17,7 @@ import {
 } from "./ChessBoardBase.funcs";
 import CapturedPieces from "../capturedPieces/capturedPieces";
 import { chessGameText } from "@/constants/chess-game";
+import { elementsIds } from "@/constants/elements-ids";
 
 const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
     className,
@@ -31,6 +32,7 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
 }) => {
     const { state, selectPiece, makeMove, promotePawn, cancelPromotion } =
         useChessContext();
+    console.log(state);
 
     function handlePieceClick(piece: ChessPieceType) {
         if (readOnly) return;
@@ -147,140 +149,128 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
                 </div>
             )}
             <div className={cn("relative aspect-square ", className)}>
-                <div className={""}>
-                    <div className="grid grid-cols-8 border border-gray-300 rounded shadow-md relative">
-                        {displayRanks.map((rank, rowIndex) =>
-                            displayFiles.map((file, colIndex) => {
-                                // Расчет реальных координат с учетом разворота доски
-                                const boardRow = reversed
-                                    ? 7 - rowIndex
-                                    : rowIndex;
-                                const boardCol = reversed
-                                    ? 7 - colIndex
-                                    : colIndex;
+                <div
+                    id={elementsIds.chessBoard}
+                    className="grid grid-cols-8 border border-gray-300 rounded shadow-md relative"
+                >
+                    {displayRanks.map((rank, rowIndex) =>
+                        displayFiles.map((file, colIndex) => {
+                            // Расчет реальных координат с учетом разворота доски
+                            const boardRow = reversed ? 7 - rowIndex : rowIndex;
+                            const boardCol = reversed ? 7 - colIndex : colIndex;
 
-                                const realRank = chessBoard.ranks[7 - boardRow];
-                                const realFile = chessBoard.files[boardCol];
+                            const realRank = chessBoard.ranks[7 - boardRow];
+                            const realFile = chessBoard.files[boardCol];
 
-                                const isSelectedCell = state.selectedPiece
-                                    ? state.selectedPiece.position.row ===
-                                          boardRow &&
-                                      state.selectedPiece.position.col ===
-                                          boardCol
-                                    : false;
+                            const isSelectedCell = state.selectedPiece
+                                ? state.selectedPiece.position.row ===
+                                      boardRow &&
+                                  state.selectedPiece.position.col === boardCol
+                                : false;
 
-                                return (
-                                    <div
-                                        key={`${file}${rank}`}
-                                        className={cn(
-                                            `${getCellColor(
-                                                boardRow,
-                                                boardCol
-                                            )} aspect-square relative`,
-                                            isSelectedCell &&
-                                                "bg-highlight bg-opacity-50",
-                                            readOnly && "cursor-default"
-                                        )}
-                                        onClick={() =>
-                                            handleCellClick({
-                                                row: boardRow,
-                                                col: boardCol,
-                                            })
-                                        }
-                                    >
-                                        {isCurrentMoveSquare(
-                                            boardCol,
-                                            boardRow
-                                        ) && (
-                                            <div className="absolute top-0 left-0 w-full h-full bg-yellow-100/75"></div>
-                                        )}
-                                        {rowIndex === chessBoard.size - 1 && (
-                                            <span
-                                                className={cn(
-                                                    "select-none pointer-events-none absolute bottom-0 right-1 font-roboto font-medium text-sm",
-                                                    getTextColor(
-                                                        boardRow,
-                                                        boardCol
-                                                    )
-                                                )}
-                                            >
-                                                {realFile}
-                                            </span>
-                                        )}
-                                        {colIndex === 0 && (
-                                            <span
-                                                className={cn(
-                                                    "select-none pointer-events-none absolute top-0 left-1 font-roboto font-medium text-sm",
-                                                    getTextColor(
-                                                        boardRow,
-                                                        boardCol
-                                                    )
-                                                )}
-                                            >
-                                                {realRank}
-                                            </span>
-                                        )}
-                                    </div>
-                                );
-                            })
-                        )}
+                            return (
+                                <div
+                                    id={`${elementsIds.chessBoardCell}${file}${rank}`}
+                                    key={`${file}${rank}`}
+                                    className={cn(
+                                        `${getCellColor(
+                                            boardRow,
+                                            boardCol
+                                        )} aspect-square relative`,
+                                        isSelectedCell &&
+                                            "bg-highlight bg-opacity-50",
+                                        readOnly && "cursor-default"
+                                    )}
+                                    onClick={() =>
+                                        handleCellClick({
+                                            row: boardRow,
+                                            col: boardCol,
+                                        })
+                                    }
+                                >
+                                    {isCurrentMoveSquare(
+                                        boardCol,
+                                        boardRow
+                                    ) && (
+                                        <div className="absolute top-0 left-0 w-full h-full bg-yellow-100/75"></div>
+                                    )}
+                                    {rowIndex === chessBoard.size - 1 && (
+                                        <span
+                                            className={cn(
+                                                "select-none pointer-events-none absolute bottom-0 right-1 font-roboto font-medium text-sm",
+                                                getTextColor(boardRow, boardCol)
+                                            )}
+                                        >
+                                            {realFile}
+                                        </span>
+                                    )}
+                                    {colIndex === 0 && (
+                                        <span
+                                            className={cn(
+                                                "select-none pointer-events-none absolute top-0 left-1 font-roboto font-medium text-sm",
+                                                getTextColor(boardRow, boardCol)
+                                            )}
+                                        >
+                                            {realRank}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })
+                    )}
 
-                        {state.validMoves.length &&
-                        state.selectedPiece &&
-                        !readOnly ? (
-                            state.validMoves.map((move) => {
-                                // Для корректного отображения подсветок ходов при развороте доски
-                                // нужно преобразовать позиции с учетом разворота
-                                const adjustedMove = {
-                                    ...move,
-                                    to: move.to, // Не меняем алгебраическую нотацию, т.к. MoveHighlight конвертирует ее сам
-                                };
+                    {state.validMoves.length &&
+                    state.selectedPiece &&
+                    !readOnly ? (
+                        state.validMoves.map((move) => {
+                            // Для корректного отображения подсветок ходов при развороте доски
+                            // нужно преобразовать позиции с учетом разворота
+                            const adjustedMove = {
+                                ...move,
+                                to: move.to, // Не меняем алгебраическую нотацию, т.к. MoveHighlight конвертирует ее сам
+                            };
 
-                                return (
-                                    <MoveHighlight
-                                        key={`highlight-${move.to}`}
-                                        move={adjustedMove}
-                                        reversed={reversed}
-                                    />
-                                );
-                            })
-                        ) : (
-                            <></>
-                        )}
+                            return (
+                                <MoveHighlight
+                                    key={`highlight-${move.to}`}
+                                    move={adjustedMove}
+                                    reversed={reversed}
+                                />
+                            );
+                        })
+                    ) : (
+                        <></>
+                    )}
 
-                        {state.board.map((row, rowIndex) =>
-                            row.map((piece, colIndex) => {
-                                if (!piece) return null;
+                    {state.board.map((row, rowIndex) =>
+                        row.map((piece, colIndex) => {
+                            if (!piece) return null;
 
-                                const pieceKey = `${piece.type}${piece.color}${rowIndex}${colIndex}`;
+                            const pieceKey = `${piece.type}${piece.color}${rowIndex}${colIndex}`;
 
-                                const isSelected = state.selectedPiece
-                                    ? state.selectedPiece.position.row ===
-                                          rowIndex &&
-                                      state.selectedPiece.position.col ===
-                                          colIndex
-                                    : false;
+                            const isSelected = state.selectedPiece
+                                ? state.selectedPiece.position.row ===
+                                      rowIndex &&
+                                  state.selectedPiece.position.col === colIndex
+                                : false;
 
-                                return (
-                                    <ChessPiece
-                                        key={pieceKey}
-                                        piece={piece}
-                                        position={{
-                                            row: rowIndex,
-                                            col: colIndex,
-                                        }}
-                                        isSelected={isSelected && !readOnly}
-                                        onClick={
-                                            !readOnly
-                                                ? handlePieceClick
-                                                : undefined
-                                        }
-                                        reversed={reversed}
-                                    />
-                                );
-                            })
-                        )}
-                    </div>
+                            return (
+                                <ChessPiece
+                                    key={pieceKey}
+                                    piece={piece}
+                                    position={{
+                                        row: rowIndex,
+                                        col: colIndex,
+                                    }}
+                                    isSelected={isSelected && !readOnly}
+                                    onClick={
+                                        !readOnly ? handlePieceClick : undefined
+                                    }
+                                    reversed={reversed}
+                                />
+                            );
+                        })
+                    )}
                 </div>
                 {state.pendingPromotion && !readOnly && (
                     <>

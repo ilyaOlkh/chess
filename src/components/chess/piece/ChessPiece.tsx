@@ -7,7 +7,7 @@ import Image from "next/image";
 import { useChessContext } from "@/context/ChessContext";
 import { ChessMove, ChessPiece as ChessPieceType } from "@/types/chess-game";
 import { cellSize } from "@/constants/chess-board";
-import { reversePosition } from "@/utilities/chess";
+import { positionToAlgebraic, reversePosition } from "@/utilities/chess";
 
 const ChessPiece: React.FC<ChessPieceComponentProps> = ({
     piece,
@@ -69,7 +69,12 @@ const ChessPiece: React.FC<ChessPieceComponentProps> = ({
             data-piece-color={piece.color}
             data-animating={isAnimationFinished ? "false" : "true"}
         >
-            <div className="pointer-events-none w-[85%] h-[85%] relative">
+            <div
+                id={`${piece.color === "w" ? "White" : "Black"}_${
+                    piece.type
+                }_${positionToAlgebraic(position)}`}
+                className="pointer-events-none w-[85%] h-[85%] relative"
+            >
                 <Image
                     src={imagePath}
                     alt={`${piece.color === "w" ? "White" : "Black"} ${
