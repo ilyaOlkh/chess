@@ -468,7 +468,7 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
     const [state, dispatch] = useReducer(
         chessReducer,
-        null,
+        undefined,
         createInitialState
     );
 

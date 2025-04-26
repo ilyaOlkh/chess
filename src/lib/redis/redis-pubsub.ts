@@ -1,19 +1,13 @@
 import Redis from "ioredis";
 import { TurnData } from "./redis-setup";
+import { GameEventType, gameEventTypes } from "@/constants/online-game";
 
 if (!process.env.UPSTASH_REDIS_URL) {
     throw "process.env.UPSTASH_REDIS_URL is undefined";
 }
 
-// Create an Upstash Redis Subscriber instance
 const redisPublisher = new Redis(process.env.UPSTASH_REDIS_URL);
 const redisSubscriber = new Redis(process.env.UPSTASH_REDIS_URL);
-
-// Game event types
-export type GameEventType =
-    | "player_joined"
-    | "move_made"
-    | "game_status_changed";
 
 interface PlayerJoinedData {
     playerId: string;
@@ -32,7 +26,6 @@ export interface GameEvent {
     timestamp: number;
 }
 
-// Redis key structures
 const getGameChannel = (gameId: string): string => `game:${gameId}:events`;
 const getEventHistoryKey = (gameId: string): string =>
     `game:${gameId}:event_history`;
@@ -42,18 +35,12 @@ const getLastEventTimestampKey = (gameId: string): string =>
 // How long to keep events in history (in seconds)
 const EVENT_HISTORY_TTL = 60 * 60; // 1 hour
 
-/**
- * Gets the timestamp of the last event for a game
- */
 export async function getLastEventTimestamp(gameId: string): Promise<number> {
     const key = getLastEventTimestampKey(gameId);
     const timestamp = await redisPublisher.get(key);
     return timestamp ? parseInt(timestamp) : 0;
 }
 
-/**
- * Sets the timestamp of the last event for a game
- */
 async function setLastEventTimestamp(
     gameId: string,
     timestamp: number
@@ -62,19 +49,12 @@ async function setLastEventTimestamp(
     await redisPublisher.set(key, timestamp.toString());
 }
 
-/**
- * Stores an event in the event history
- */
 async function storeEventInHistory(event: GameEvent): Promise<void> {
     const key = getEventHistoryKey(event.gameId);
     await redisPublisher.zadd(key, event.timestamp, JSON.stringify(event));
-    // Set expiration on history to prevent unlimited growth
     await redisPublisher.expire(key, EVENT_HISTORY_TTL);
 }
 
-/**
- * Gets all events after a specific timestamp
- */
 export async function getEventsSince(
     gameId: string,
     timestamp: number
@@ -93,9 +73,6 @@ export async function getEventsSince(
     return eventStrings.map((eventStr) => JSON.parse(eventStr) as GameEvent);
 }
 
-/**
- * Publish an event to the game channel and store in history
- */
 export async function publishGameEvent(
     event: Omit<GameEvent, "timestamp">
 ): Promise<void> {
@@ -107,13 +84,10 @@ export async function publishGameEvent(
     };
 
     try {
-        // Publish to subscribers
         await redisPublisher.publish(channel, JSON.stringify(fullEvent));
 
-        // Store in event history
         await storeEventInHistory(fullEvent);
 
-        // Update last event timestamp
         await setLastEventTimestamp(event.gameId, timestamp);
     } catch (error) {
         throw error;
@@ -126,7 +100,6 @@ export function subscribeToGameEvents(
 ): () => Promise<void> {
     const channel = getGameChannel(gameId);
 
-    // Set up message handler
     redisSubscriber.on("message", (receivedChannel, message) => {
         if (receivedChannel === channel) {
             try {
@@ -141,36 +114,28 @@ export function subscribeToGameEvents(
         }
     });
 
-    // Subscribe to channel
     redisSubscriber.subscribe(channel, (err) => {
         if (err) {
             console.error(`Error subscribing to channel ${channel}:`, err);
         }
     });
 
-    // Return unsubscribe function
     return async () => {
         await redisSubscriber.unsubscribe(channel);
     };
 }
 
-/**
- * Wait for a game event with timeout
- * Uses a blocking approach for long polling
- */
 export function waitForGameEvent(
     gameId: string,
     timeoutMs: number = 30000
 ): Promise<GameEvent | undefined> {
     return new Promise((resolve) => {
-        // Set timeout timer
         const timeoutId = setTimeout(() => {
             unsubscribe().then(() => {
                 resolve(undefined);
             });
         }, timeoutMs);
 
-        // Subscribe to channel and set up handler
         const unsubscribe = subscribeToGameEvents(gameId, (event) => {
             clearTimeout(timeoutId);
             unsubscribe().then(() => {
@@ -180,9 +145,6 @@ export function waitForGameEvent(
     });
 }
 
-/**
- * Check if there are subscribers to a channel
- */
 export async function hasSubscribers(gameId: string): Promise<boolean> {
     const channel = getGameChannel(gameId);
     try {
@@ -194,18 +156,13 @@ export async function hasSubscribers(gameId: string): Promise<boolean> {
     }
 }
 
-/**
- * Event publication functions for different parts of the application
- */
-
-// Publish player joined event
 export async function publishPlayerJoined(
     gameId: string,
     playerId: string,
     playerRole: string
 ): Promise<void> {
     await publishGameEvent({
-        type: "player_joined",
+        type: gameEventTypes.player_joined,
         gameId,
         data: {
             playerId,
@@ -214,23 +171,21 @@ export async function publishPlayerJoined(
     });
 }
 
-// Publish move made event
 export async function publishMoveMade(turn: TurnData) {
     await publishGameEvent({
-        type: "move_made",
+        type: gameEventTypes.move_made,
         gameId: turn.gameId,
         data: turn,
     });
 }
 
-// Publish game status changed event
 export async function publishGameStatusChanged(
     gameId: string,
     status: string,
     winner?: string
 ): Promise<void> {
     await publishGameEvent({
-        type: "game_status_changed",
+        type: gameEventTypes.game_status_changed,
         gameId,
         data: {
             status,

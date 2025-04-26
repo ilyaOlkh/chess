@@ -6,6 +6,7 @@ import {
 } from "./redis-pubsub";
 import { Square } from "chess.js";
 import { PieceType } from "@/types/chess-game";
+import { playerRoles } from "@/constants/online-game";
 
 const redis = Redis.fromEnv();
 
@@ -80,15 +81,16 @@ export async function updateGame(
         throw new Error(`Game with ID ${gameId} not found`);
     }
 
-    // Update the game data
     await redis.hset(keyStructure.game(gameId), updateData);
 
-    // Если добавляется второй игрок, публикуем событие
     if (updateData.secondPlayerId && !game.secondPlayerId) {
-        await publishPlayerJoined(gameId, updateData.secondPlayerId, "second");
+        await publishPlayerJoined(
+            gameId,
+            updateData.secondPlayerId,
+            playerRoles.second
+        );
     }
 
-    // If we're updating status, handle the sets accordingly
     if (updateData.status && updateData.status !== game.status) {
         if (game.status === "waiting") {
             await redis.srem(keyStructure.waitingGames, gameId);
@@ -104,7 +106,6 @@ export async function updateGame(
             await redis.sadd(keyStructure.completedGames, gameId);
         }
 
-        // Публикуем событие изменения статуса
         await publishGameStatusChanged(
             gameId,
             updateData.status,
@@ -162,28 +163,22 @@ export async function updateGameFen(
 }
 
 export async function createTurn(turnData: TurnData): Promise<string> {
-    // Генерируем уникальный ID для хода
     const turnId = crypto.randomUUID();
 
-    // Добавляем ID в данные хода
     const turn: TurnData = {
         ...turnData,
         id: turnId,
     };
 
-    // Сохраняем данные хода в хеш-таблицу
     const turnKey = keyStructure.turn(turnId);
 
-    // Преобразуем объект в плоский формат для hset
     const flatTurnData: Record<string, string> = {};
     for (const [key, value] of Object.entries(turn)) {
-        flatTurnData[key] = value === null ? "" : String(value);
+        flatTurnData[key] = !value ? "" : String(value);
     }
 
-    // Сохраняем данные
     await redis.hset(turnKey, flatTurnData);
 
-    // Добавляем ID хода в отсортированный набор с timestamp в качестве score
     const turnsKey = keyStructure.gameTurns(turn.gameId);
 
     const score = new Date(turn.createTime).getTime();

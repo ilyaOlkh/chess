@@ -1,59 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeMove } from "@server/game/chess-game-service";
+import { handleRequest } from "@server/api/handle-request";
+import { RequestResponse } from "@/services/longPollingService";
+import { isAuthTokenProvided } from "@server/auth/auths";
+import { createError } from "@server/response/error";
 
-export async function POST(request: NextRequest) {
-    try {
-        // Get the Authorization header
-        const authHeader = request.headers.get("Authorization");
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return NextResponse.json(
-                { error: "Unauthorized: No valid token provided" },
-                { status: 401 }
-            );
-        }
+export const POST = handleRequest<RequestResponse>(PostHandler);
 
-        const token = authHeader.split(" ")[1];
+async function PostHandler(request: NextRequest) {
+    const authHeader = isAuthTokenProvided(request);
 
-        // Parse the move data from the request body
-        const moveData = await request.json();
-        const { from, to, promotion } = moveData;
+    const token = authHeader.split(" ")[1];
 
-        if (!from || !to) {
-            return NextResponse.json(
-                { error: "Bad Request: Missing required move data" },
-                { status: 400 }
-            );
-        }
+    const moveData = await request.json();
+    const { from, to, promotion } = moveData;
 
-        // Make the move using the game service
-        const result = await makeMove(token, from, to, promotion);
+    if (!from || !to) {
+        throw createError("Bad Request: Missing required move data", 400);
+    }
 
-        // Handle move result
-        if (!result.success) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: result.error,
-                    isGameOver: result.isGameOver,
-                    gameResult: result.gameResult,
-                },
-                { status: result.isGameOver ? 200 : 400 }
-            );
-        }
+    const result = await makeMove(token, from, to, promotion);
 
-        // Move was successful
-        return NextResponse.json({
-            success: true,
-            newFen: result.newFen,
-            isGameOver: result.isGameOver,
-            gameResult: result.gameResult,
-            newToken: result.newToken,
-        });
-    } catch (error) {
-        console.error("Error making move:", error);
+    // Handle move result
+    if (!result.success) {
         return NextResponse.json(
-            { error: "Internal server error" },
-            { status: 500 }
+            {
+                success: false,
+                error: result.error,
+                isGameOver: result.isGameOver,
+                gameResult: result.gameResult,
+            },
+            { status: result.isGameOver ? 200 : 400 }
         );
     }
+
+    return NextResponse.json({
+        success: true,
+        newFen: result.newFen,
+        isGameOver: result.isGameOver,
+        gameResult: result.gameResult,
+        newToken: result.newToken,
+    });
 }

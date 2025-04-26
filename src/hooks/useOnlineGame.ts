@@ -8,6 +8,8 @@ import {
     RequestResponse,
 } from "@/services/longPollingService";
 import { useChessContext } from "@/context/ChessContext";
+import { PlayerRole, playerRoles } from "@/constants/online-game";
+import { PlayerColor } from "@/constants/chess-game";
 
 export type GameStatus =
     | "connecting"
@@ -16,8 +18,6 @@ export type GameStatus =
     | "completed"
     | "aborted"
     | "error";
-export type PlayerColor = "white" | "black";
-export type PlayerRole = "first" | "second" | "spectator";
 
 export interface OnlineGameState {
     status: GameStatus;
@@ -51,7 +51,7 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
     const [gameState, setGameState] = useState<OnlineGameState>({
         status: "connecting",
         playerColor: "white",
-        playerRole: "spectator",
+        playerRole: playerRoles.spectator,
         isPlayerTurn: false,
         currentTurn: "white",
         opponentConnected: false,
@@ -78,7 +78,11 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
             }
 
             const lastMove = data.lastMove;
-            if (lastMove && data.playerTurn) {
+            if (
+                lastMove &&
+                (data.playerTurn ||
+                    gameState.playerRole === playerRoles.spectator)
+            ) {
                 makeIntermalMove(lastMove.from, lastMove.to);
                 if (lastMove.promotion) {
                     promotePawn(lastMove.promotion);
@@ -105,7 +109,7 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                 localStorage.setItem(`chess_token_${gameId}`, data.newToken);
             }
         },
-        [gameId, makeIntermalMove, promotePawn]
+        [gameId, makeIntermalMove, promotePawn, gameState.playerRole]
     );
 
     // Инициализация подключения к игре
@@ -119,8 +123,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                     `chess_token_${gameId}`
                 );
 
-                // Отправляем запрос на присоединение к игре
-                // Если у нас есть токен, отправляем его для проверки
                 const response = await joinGame(
                     gameId,
                     savedToken || undefined
@@ -130,7 +132,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                     throw new Error(response.error);
                 }
 
-                // Если получен новый токен, сохраняем его
                 if (response.playerToken) {
                     setPlayerToken(response.playerToken);
                     localStorage.setItem(
@@ -138,10 +139,10 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                         response.playerToken
                     );
 
-                    // Устанавливаем роль и цвет игрока на основе ответа сервера
                     setGameState((prev) => ({
                         ...prev,
-                        playerRole: response.playerRole || "spectator",
+                        playerRole:
+                            response.playerRole || playerRoles.spectator,
                         playerColor: response.playerColor,
                         playerId: response.playerId,
                         isPlayerTurn: !!response.playerTurn,
@@ -268,7 +269,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                         ? error.message
                         : "Failed to create game",
             }));
-            return null;
         }
     }, []);
 

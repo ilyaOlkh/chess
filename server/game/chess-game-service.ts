@@ -10,31 +10,29 @@ import {
     updateGameFen,
     createTurn,
     getWaitingGames,
-    updateGame,
 } from "@/lib/redis/redis-setup";
 import {
     generatePlayerJoinToken,
-    generateSpectatorToken,
     verifyPlayerToken,
     updatePlayerMoveTime,
     hasMoveTimeExpired,
+    PlayerTokenPayload,
 } from "@/lib/auth/player-auth";
-import { createError } from "@server/response/error";
 import { PieceType } from "@/types/chess-game";
+import { playerColors } from "@/constants/chess-game";
+import { playerRoles } from "@/constants/online-game";
 
 export async function createNewGame(
     timeControl: number,
-    firstPlayerColor: PlayerColor = "white"
+    firstPlayerColor: PlayerColor = playerColors.white
 ): Promise<{
     gameId: string;
     playerToken: string;
     playerId: string;
 }> {
-    // Default starting FEN position
     const initialFen =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-    // Generate a unique player ID
     const firstPlayerId = crypto.randomUUID();
 
     const gameData: GameData = {
@@ -61,68 +59,6 @@ export async function createNewGame(
     return { gameId, playerToken, playerId: firstPlayerId };
 }
 
-/**
- * Join an existing game as the second player
- */
-export async function joinGame(gameId: string): Promise<{
-    playerToken?: string;
-    playerId?: string;
-    error?: string;
-}> {
-    const game = await getGame(gameId);
-
-    if (!game) {
-        return { error: "Game not found" };
-    }
-
-    if (game.status !== "waiting") {
-        return {
-            error: "Game is not in waiting status",
-        };
-    }
-
-    if (game.secondPlayerId) {
-        return {
-            error: "Game already has a second player",
-        };
-    }
-
-    // Generate a unique player ID for the second player
-    const secondPlayerId = crypto.randomUUID();
-
-    // Update game with the second player ID and change status to active
-    await updateGame(gameId, {
-        secondPlayerId,
-        status: "active",
-    });
-
-    // Generate player token for the second player
-    const playerToken = generatePlayerJoinToken(
-        gameId,
-        false,
-        game.timeControl,
-        game.firstPlayerColor,
-        secondPlayerId
-    );
-
-    return { playerToken, playerId: secondPlayerId };
-}
-
-export async function spectateGame(gameId: string): Promise<{
-    spectatorToken: string;
-    error?: string;
-}> {
-    const game = await getGame(gameId);
-
-    if (!game) {
-        throw createError("Game not found", 404);
-    }
-
-    const spectatorToken = generateSpectatorToken(gameId);
-
-    return { spectatorToken };
-}
-
 export async function makeMove(
     token: string,
     from: Square,
@@ -144,7 +80,7 @@ export async function makeMove(
     }
 
     // Check if move time has expired
-    if (hasMoveTimeExpired(token)) {
+    if (hasMoveTimeExpired(tokenData)) {
         // Game over due to time expiration
         const loserColor = tokenData.playerColor;
         const winnerColor = loserColor === "white" ? "black" : "white";
@@ -177,7 +113,7 @@ export async function makeMove(
     const chess = new Chess(game.currentFen);
     const currentTurn = chess.turn() === "w" ? "white" : "black";
 
-    if (tokenData.playerColor !== currentTurn) {
+    if (!isPlayerTurn(game.currentFen, tokenData)) {
         return { success: false, error: "Not your turn" };
     }
 
@@ -236,9 +172,19 @@ export async function makeMove(
     }
 }
 
-/**
- * Find available games to join
- */
 export async function findAvailableGames(): Promise<GameData[]> {
     return getWaitingGames();
+}
+
+export function isPlayerTurn(
+    currentFen: string,
+    tokenData?: PlayerTokenPayload
+): boolean {
+    const chess = new Chess(currentFen);
+    const currentTurn = chess.turn() === "w" ? "white" : "black";
+
+    return (
+        tokenData?.playerRole !== playerRoles.spectator &&
+        tokenData?.playerColor === currentTurn
+    );
 }

@@ -1,4 +1,4 @@
-import { PlayerRole } from "@/lib/auth/player-auth";
+import { PlayerRole } from "@/constants/online-game";
 import { GameEvent } from "@/lib/redis/redis-pubsub";
 import { PlayerColor, TurnData } from "@/lib/redis/redis-setup";
 import { MoveData } from "@/types/chess-board";
@@ -207,27 +207,6 @@ export async function createGame(
     return data;
 }
 
-export async function spectateGame(
-    gameId: string
-): Promise<{ spectatorToken: string }> {
-    const response = await fetch(`/api/game/${gameId}/spectate`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to spectate game");
-    }
-
-    return response.json();
-}
-
-/**
- * Checks if a game exists
- */
 export async function checkGameExists(
     gameId: string
 ): Promise<{ exists: boolean; status?: string; startDate?: string }> {

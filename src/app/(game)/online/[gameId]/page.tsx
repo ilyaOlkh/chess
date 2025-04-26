@@ -13,7 +13,7 @@ import {
     DialogFooter,
 } from "@/components/shadcn/Dialog";
 import { MoveData } from "@/types/chess-board";
-import { onlineGameText } from "@/constants/online-game";
+import { onlineGameText, playerRoles } from "@/constants/online-game";
 import { useCurrentUrl } from "@/hooks/useCurrentUrl";
 import { useOnlineGame } from "@/hooks/useOnlineGame";
 
@@ -31,7 +31,8 @@ export default function OnlineGame({
     const [showCopied, setShowCopied] = useState<boolean>(false);
     const [showError, setShowError] = useState<boolean>(false);
     const [isReadOnly, setIsReadOnly] = useState<boolean>(
-        gameState.playerRole === "spectator" || !gameState.isPlayerTurn
+        gameState.playerRole === playerRoles.spectator ||
+            !gameState.isPlayerTurn
     );
 
     const handleMove = useCallback(
@@ -69,7 +70,8 @@ export default function OnlineGame({
 
     useEffect(() => {
         setIsReadOnly(
-            gameState.playerRole === "spectator" || !gameState.isPlayerTurn
+            gameState.playerRole === playerRoles.spectator ||
+                !gameState.isPlayerTurn
         );
     }, [gameState.playerRole, gameState.isPlayerTurn]);
 

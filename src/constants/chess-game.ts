@@ -28,3 +28,10 @@ export const chessGameText = {
     onlineFirstPlayer: "Гравець 1",
     onlineSecondPlayer: "Гравець 2",
 };
+
+export const playerColors = {
+    white: "white",
+    black: "black",
+} as const;
+
+export type PlayerColor = (typeof playerColors)[keyof typeof playerColors];

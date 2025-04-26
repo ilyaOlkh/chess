@@ -1,8 +1,6 @@
 import jwt from "jsonwebtoken";
 import { PlayerColor } from "../redis/redis-setup";
-
-// Define player roles
-export type PlayerRole = "first" | "second" | "spectator";
+import { PlayerRole, playerRoles } from "@/constants/online-game";
 
 export interface PlayerTokenPayload {
     gameId: string;
@@ -11,7 +9,7 @@ export interface PlayerTokenPayload {
     playerRole: PlayerRole;
     issuedAt: number; // Unix timestamp
     moveTimeRemaining?: number; // In seconds, null for spectators
-    lastEventTimestamp: number; // Timestamp of the last processed event
+    lastEventTimestamp?: number; // Timestamp of the last processed event
     iat?: number;
     exp?: number;
 }
@@ -25,7 +23,7 @@ const TOKEN_EXPIRATION = "12h";
 /**
  * Creates a JWT token for a player
  */
-export function createPlayerToken(payload: PlayerTokenPayload): string {
+export function createPlayerToken(payload: PlayerTokenPayload) {
     if (!payload.exp)
         return jwt.sign(payload, JWT_SECRET, {
             expiresIn: TOKEN_EXPIRATION,
@@ -47,9 +45,6 @@ export function verifyPlayerToken(token: string) {
     }
 }
 
-/**
- * Updates the move time remaining in a player's token
- */
 export function updatePlayerMoveTime(
     token: string,
     timeRemaining: number
@@ -60,7 +55,6 @@ export function updatePlayerMoveTime(
         throw new Error("Invalid token");
     }
 
-    // Create a new token with updated time
     const newPayload: PlayerTokenPayload = {
         ...payload,
         moveTimeRemaining: timeRemaining,
@@ -74,18 +68,16 @@ export function updatePlayerMoveTime(
  * Updates the player token with a new last event timestamp
  */
 export function updatePlayerTokenTimestamp(
-    token: string,
+    tokenData: PlayerTokenPayload,
     timestamp: number
 ): string {
-    const payload = verifyPlayerToken(token);
-
-    if (!payload) {
+    if (!tokenData) {
         throw new Error("Invalid token");
     }
 
     // Create a new token with updated timestamp
     const newPayload: PlayerTokenPayload = {
-        ...payload,
+        ...tokenData,
         lastEventTimestamp: timestamp,
     };
 
@@ -96,19 +88,17 @@ export function updatePlayerTokenTimestamp(
  * Updates both move time and last event timestamp in a player's token
  */
 export function updatePlayerTimeAndTimestamp(
-    token: string,
+    tokenData: PlayerTokenPayload,
     timeRemaining: number,
     timestamp: number
 ): string {
-    const payload = verifyPlayerToken(token);
-
-    if (!payload) {
+    if (!tokenData) {
         throw new Error("Invalid token");
     }
 
     // Create a new token with updated time and timestamp
     const newPayload: PlayerTokenPayload = {
-        ...payload,
+        ...tokenData,
         moveTimeRemaining: timeRemaining,
         issuedAt: Math.floor(Date.now() / 1000),
         lastEventTimestamp: timestamp,
@@ -117,18 +107,13 @@ export function updatePlayerTimeAndTimestamp(
     return createPlayerToken(newPayload);
 }
 
-/**
- * Checks if a player's move time has expired
- */
-export function hasMoveTimeExpired(token: string): boolean {
-    const payload = verifyPlayerToken(token);
-
-    if (!payload?.moveTimeRemaining) {
-        return false; // Spectators don't have time constraints
+export function hasMoveTimeExpired(tokenData: PlayerTokenPayload): boolean {
+    if (!tokenData?.moveTimeRemaining) {
+        return false;
     }
 
-    const secondsElapsed = Math.floor(Date.now() / 1000) - payload.issuedAt;
-    return secondsElapsed > payload.moveTimeRemaining;
+    const secondsElapsed = Math.floor(Date.now() / 1000) - tokenData.issuedAt;
+    return secondsElapsed > tokenData.moveTimeRemaining;
 }
 
 /**
@@ -141,9 +126,8 @@ export function generatePlayerJoinToken(
     firstPlayerColor: PlayerColor,
     playerId: string
 ): string {
-    const playerRole: PlayerRole = isFirstPlayer ? "first" : "second";
+    const playerRole = isFirstPlayer ? playerRoles.first : playerRoles.second;
 
-    // Determine player color based on role and first player's color
     const playerColor: PlayerColor = isFirstPlayer
         ? firstPlayerColor
         : firstPlayerColor === "white"
@@ -163,16 +147,13 @@ export function generatePlayerJoinToken(
     return createPlayerToken(payload);
 }
 
-/**
- * Generates a spectator token
- */
 export function generateSpectatorToken(gameId: string): string {
     const spectatorId = crypto.randomUUID();
 
     const payload: PlayerTokenPayload = {
         gameId,
         playerId: spectatorId,
-        playerRole: "spectator",
+        playerRole: playerRoles.spectator,
         issuedAt: Math.floor(Date.now() / 1000),
         lastEventTimestamp: Date.now(),
     };
