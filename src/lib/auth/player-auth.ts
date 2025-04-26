@@ -7,10 +7,10 @@ export type PlayerRole = "first" | "second" | "spectator";
 export interface PlayerTokenPayload {
     gameId: string;
     playerId: string;
-    playerColor: PlayerColor | null; // Null for spectators
+    playerColor?: PlayerColor;
     playerRole: PlayerRole;
     issuedAt: number; // Unix timestamp
-    moveTimeRemaining: number | null; // In seconds, null for spectators
+    moveTimeRemaining?: number; // In seconds, null for spectators
     lastEventTimestamp: number; // Timestamp of the last processed event
     iat?: number;
     exp?: number;
@@ -38,13 +38,12 @@ export function createPlayerToken(payload: PlayerTokenPayload): string {
 /**
  * Verifies and decodes a player token
  */
-export function verifyPlayerToken(token: string): PlayerTokenPayload | null {
+export function verifyPlayerToken(token: string) {
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as PlayerTokenPayload;
         return decoded;
     } catch (error) {
         console.error("Token verification failed:", error);
-        return null;
     }
 }
 
@@ -124,7 +123,7 @@ export function updatePlayerTimeAndTimestamp(
 export function hasMoveTimeExpired(token: string): boolean {
     const payload = verifyPlayerToken(token);
 
-    if (!payload || payload.moveTimeRemaining === null) {
+    if (!payload?.moveTimeRemaining) {
         return false; // Spectators don't have time constraints
     }
 
@@ -173,10 +172,8 @@ export function generateSpectatorToken(gameId: string): string {
     const payload: PlayerTokenPayload = {
         gameId,
         playerId: spectatorId,
-        playerColor: null,
         playerRole: "spectator",
         issuedAt: Math.floor(Date.now() / 1000),
-        moveTimeRemaining: null,
         lastEventTimestamp: Date.now(),
     };
 

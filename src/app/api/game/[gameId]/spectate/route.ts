@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spectateGame } from "@/lib/game/chess-game-service";
+import { spectateGame } from "@server/game/chess-game-service";
+import { handleRequest, RouteParams } from "@server/api/handle-request";
+import { RequestResponse } from "@/services/longPollingService";
 
-export async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ gameId: string }> }
-) {
+export const POST = handleRequest<RequestResponse>(PostHandler);
+
+async function PostHandler(request: NextRequest, { params }: RouteParams) {
     try {
         const gameId = (await params).gameId;
 
-        // Attempt to spectate the game
         const result = await spectateGame(gameId);
 
         if (!result.spectatorToken) {

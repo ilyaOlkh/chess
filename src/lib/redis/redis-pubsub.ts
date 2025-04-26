@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { TurnData } from "./redis-setup";
 
 if (!process.env.UPSTASH_REDIS_URL) {
     throw "process.env.UPSTASH_REDIS_URL is undefined";
@@ -19,24 +20,15 @@ interface PlayerJoinedData {
     playerRole: string;
 }
 
-interface MoveMadeData {
-    turnId: string;
-    from: string;
-    to: string;
-    color: string;
-    fen: string;
-    promotion?: string;
-}
-
 interface GameStatusChangedData {
     status: string;
-    winner: string | null;
+    winner?: string;
 }
 
 export interface GameEvent {
     type: GameEventType;
     gameId: string;
-    data: PlayerJoinedData | MoveMadeData | GameStatusChangedData;
+    data: PlayerJoinedData | TurnData | GameStatusChangedData;
     timestamp: number;
 }
 
@@ -169,12 +161,12 @@ export function subscribeToGameEvents(
 export function waitForGameEvent(
     gameId: string,
     timeoutMs: number = 30000
-): Promise<GameEvent | null> {
+): Promise<GameEvent | undefined> {
     return new Promise((resolve) => {
         // Set timeout timer
         const timeoutId = setTimeout(() => {
             unsubscribe().then(() => {
-                resolve(null);
+                resolve(undefined);
             });
         }, timeoutMs);
 
@@ -223,26 +215,11 @@ export async function publishPlayerJoined(
 }
 
 // Publish move made event
-export async function publishMoveMade(
-    gameId: string,
-    turnId: string,
-    from: string,
-    to: string,
-    color: string,
-    fen: string,
-    promotion?: string
-): Promise<void> {
+export async function publishMoveMade(turn: TurnData) {
     await publishGameEvent({
         type: "move_made",
-        gameId,
-        data: {
-            turnId,
-            from,
-            to,
-            color,
-            fen,
-            promotion,
-        },
+        gameId: turn.gameId,
+        data: turn,
     });
 }
 
@@ -250,7 +227,7 @@ export async function publishMoveMade(
 export async function publishGameStatusChanged(
     gameId: string,
     status: string,
-    winner: string | null = null
+    winner?: string
 ): Promise<void> {
     await publishGameEvent({
         type: "game_status_changed",

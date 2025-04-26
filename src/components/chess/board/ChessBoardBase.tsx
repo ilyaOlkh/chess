@@ -80,7 +80,7 @@ const ChessBoardBase: React.FC<ChessBoardBaseProps> = ({
                 ) {
                     selectPiece(pieceAtPosition);
                 } else {
-                    selectPiece(null);
+                    selectPiece(undefined);
                 }
             }
         } else {

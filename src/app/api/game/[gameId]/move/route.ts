@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { makeMove } from "@/lib/game/chess-game-service";
+import { makeMove } from "@server/game/chess-game-service";
 
 export async function POST(request: NextRequest) {
     try {

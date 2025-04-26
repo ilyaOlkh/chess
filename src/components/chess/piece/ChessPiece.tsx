@@ -19,7 +19,7 @@ const ChessPiece: React.FC<ChessPieceComponentProps> = ({
     const { state } = useChessContext();
 
     const [renderPosition, setRenderPosition] = useState<CellPosition>(
-        getInitRenderPosition(piece, position, state.currentMove, reversed)
+        getInitRenderPosition(piece, position, reversed, state.currentMove)
     );
     const [isAnimationFinished, setIsAnimationFinished] = useState(
         !shouldAnimateChessPiece(piece, position, state.currentMove)
@@ -89,8 +89,8 @@ export default ChessPiece;
 function getInitRenderPosition(
     piece: ChessPieceType,
     position: CellPosition,
-    currentMove: ChessMove | null,
-    reversed: boolean
+    reversed: boolean,
+    currentMove?: ChessMove
 ) {
     const movement = findCheckPieceInMovement(
         piece,
@@ -105,7 +105,7 @@ function getInitRenderPosition(
 function shouldAnimateChessPiece(
     piece: ChessPieceType,
     position: CellPosition,
-    currentMove: ChessMove | null
+    currentMove?: ChessMove
 ) {
     const movement = findCheckPieceInMovement(piece, position, currentMove);
 
@@ -115,7 +115,7 @@ function shouldAnimateChessPiece(
 function findCheckPieceInMovement(
     piece: ChessPieceType,
     position: CellPosition,
-    currentMove: ChessMove | null,
+    currentMove?: ChessMove,
     reversed = false
 ) {
     if (!currentMove) {

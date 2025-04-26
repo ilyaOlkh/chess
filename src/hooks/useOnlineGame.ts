@@ -5,7 +5,7 @@ import {
     makeOnlineMove,
     joinGame,
     createGame,
-    LongPollResponse,
+    RequestResponse,
 } from "@/services/longPollingService";
 import { useChessContext } from "@/context/ChessContext";
 
@@ -21,21 +21,21 @@ export type PlayerRole = "first" | "second" | "spectator";
 
 export interface OnlineGameState {
     status: GameStatus;
-    playerColor: PlayerColor | null;
+    playerColor?: PlayerColor;
     playerRole: PlayerRole;
     isPlayerTurn: boolean;
     currentTurn: PlayerColor;
-    lastMove: {
+    lastMove?: {
         from: string;
         to: string;
         promotion?: string;
-    } | null;
+    };
     opponentConnected: boolean;
-    error: string | null;
+    error?: string;
     isCheckmate: boolean;
     isDraw: boolean;
-    winner: string | null;
-    playerId: string | null;
+    winner?: string;
+    playerId?: string;
 }
 
 export interface UseOnlineGameProps {
@@ -54,24 +54,20 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
         playerRole: "spectator",
         isPlayerTurn: false,
         currentTurn: "white",
-        lastMove: null,
         opponentConnected: false,
-        error: null,
         isCheckmate: false,
         isDraw: false,
-        winner: null,
-        playerId: null,
     });
 
     // JWT токен для аутентификации
-    const [playerToken, setPlayerToken] = useState<string | null>(null);
+    const [playerToken, setPlayerToken] = useState<string>();
 
     // Флаг инициализации
     const [initialized, setInitialized] = useState(false);
 
     // Обновление состояния игры на основе данных от long polling
     const handleGameUpdate = useCallback(
-        (data: LongPollResponse) => {
+        (data: RequestResponse) => {
             // Извлечь текущий ход из FEN если доступен
             let currentTurn: PlayerColor = "white";
             if (data.fenPosition) {
@@ -97,10 +93,10 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                 currentTurn,
                 opponentConnected:
                     data.opponentConnected ?? prev.opponentConnected,
-                error: data.error || null,
+                error: data.error,
                 isCheckmate: data.checkmate || false,
                 isDraw: data.draw || false,
-                winner: data.winner || null,
+                winner: data.winner,
             }));
 
             // Если получен новый токен, обновить его
@@ -146,8 +142,8 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                     setGameState((prev) => ({
                         ...prev,
                         playerRole: response.playerRole || "spectator",
-                        playerColor: response.playerColor || null,
-                        playerId: response.playerId || null,
+                        playerColor: response.playerColor,
+                        playerId: response.playerId,
                         isPlayerTurn: !!response.playerTurn,
                         status:
                             (response.gameStatus as GameStatus) || "waiting",
@@ -194,7 +190,7 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                     error.message.includes("invalid")
                 ) {
                     localStorage.removeItem(`chess_token_${gameId}`);
-                    setPlayerToken(null);
+                    setPlayerToken(undefined);
                 }
 
                 setGameState((prev) => ({

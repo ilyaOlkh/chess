@@ -4,12 +4,14 @@ import {
     publishPlayerJoined,
     publishMoveMade,
 } from "./redis-pubsub";
+import { Square } from "chess.js";
+import { PieceType } from "@/types/chess-game";
 
 const redis = Redis.fromEnv();
 
 export type GameStatus = "waiting" | "active" | "completed" | "aborted";
 export type PlayerColor = "white" | "black";
-export type Winner = null | "white" | "black" | "draw";
+export type Winner = "white" | "black" | "draw";
 
 type WithIndexer = Record<string, unknown>;
 
@@ -17,23 +19,24 @@ export interface GameData extends WithIndexer {
     id: string;
     currentFen: string;
     startDate: string;
-    endDate: string | null;
+    endDate?: string;
     firstPlayerColor: PlayerColor;
-    firstPlayerId: string | null;
-    secondPlayerId: string | null;
+    firstPlayerId?: string;
+    secondPlayerId?: string;
     status: GameStatus;
-    winner: Winner;
+    winner?: Winner;
     timeControl: number;
 }
 
 export interface TurnData extends WithIndexer {
     id: string;
     gameId: string;
-    from: string;
-    to: string;
+    from: Square;
+    to: Square;
     createTime: string;
     color: PlayerColor;
-    promotion?: string;
+    promotion?: PieceType;
+    currentFen: string;
 }
 
 const keyStructure = {
@@ -110,15 +113,17 @@ export async function updateGame(
     }
 }
 
-export async function getGame(gameId: string): Promise<GameData | null> {
+export async function getGame(gameId: string) {
     const gameData = await redis.hgetall(keyStructure.game(gameId));
-    return (gameData as GameData) || null;
+    if (gameData) {
+        return gameData as GameData;
+    }
 }
 
 export async function updateGameStatus(
     gameId: string,
     status: GameStatus,
-    winner: Winner = null
+    winner?: Winner
 ): Promise<void> {
     const game = await getGame(gameId);
 
@@ -193,15 +198,7 @@ export async function createTurn(turnData: TurnData): Promise<string> {
         // Получаем текущую FEN позицию игры
         const game = await getGame(turn.gameId);
         if (game) {
-            await publishMoveMade(
-                turn.gameId,
-                turnId,
-                turn.from,
-                turn.to,
-                turn.color,
-                game.currentFen,
-                turn.promotion
-            );
+            await publishMoveMade({ ...turn, id: turnId });
         }
     } catch (error) {
         console.error(`Error publishing move event: ${error}`);
@@ -232,42 +229,18 @@ export async function getGameTurns(gameId: string): Promise<TurnData[]> {
     return turns;
 }
 
-export async function getLatestTurn(gameId: string): Promise<TurnData | null> {
-    // Детальное логирование
-
-    // Формируем ключ для Sorted Set ходов
+export async function getLatestTurn(gameId: string) {
     const turnsKey = keyStructure.gameTurns(gameId);
-
-    // Получаем ID последнего хода (индекс -1 в Redis означает последний элемент)
     const turnIds: string[] = await redis.zrange(turnsKey, -1, -1);
 
-    if (!turnIds.length) {
-        return null;
+    if (turnIds.length) {
+        const turnKey = keyStructure.turn(turnIds[0]);
+        const turnData = await redis.hgetall(turnKey);
+
+        if (turnData && typeof turnData === "object") {
+            return turnData as TurnData;
+        }
     }
-
-    // Формируем ключ для хеша с данными хода
-    const turnKey = keyStructure.turn(turnIds[0]);
-
-    // Получаем все поля хеша
-    const turnData = await redis.hgetall(turnKey);
-
-    // Проверяем типы данных
-    if (turnData && typeof turnData === "object") {
-        // Преобразуем данные в правильный формат, если нужно
-        const typedTurnData: TurnData = {
-            id: String(turnData.id || ""),
-            gameId: String(turnData.gameId || ""),
-            from: String(turnData.from || ""),
-            to: String(turnData.to || ""),
-            createTime: String(turnData.createTime || new Date().toISOString()),
-            color: (turnData.color as PlayerColor) || "white",
-            promotionPiece: (turnData.promotionPiece as string | null) || null,
-        };
-
-        return typedTurnData;
-    }
-
-    return null;
 }
 
 export async function getWaitingGames(): Promise<GameData[]> {

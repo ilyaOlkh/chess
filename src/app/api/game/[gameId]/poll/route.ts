@@ -10,6 +10,7 @@ import {
     getLatestTurn,
     GameStatus,
     Winner,
+    TurnData,
 } from "@/lib/redis/redis-setup";
 import {
     waitForGameEvent,
@@ -17,74 +18,54 @@ import {
     GameEvent,
 } from "@/lib/redis/redis-pubsub";
 import { Chess } from "chess.js";
+import { isAuthTokenProvided } from "@server/auth/auths";
+import { handleRequest, RouteParams } from "@server/api/handle-request";
+import { RequestResponse } from "@/services/longPollingService";
+import { ErrorResponse } from "@server/response/error";
 
-// Long polling timeout in milliseconds
 const LONG_POLL_TIMEOUT = 30 * 1000;
 
-// State interface for event processing
 interface GameState {
     currentFen: string;
     gameStatus: GameStatus;
-    winner: Winner;
-    lastMove?: {
-        from: string;
-        to: string;
-        promotion?: string | null;
-    };
+    winner?: Winner;
+    lastMove?: TurnData;
 }
 
-// Process missed event and extract relevant data
 function processMissedEvent(event: GameEvent, state: GameState): void {
     switch (event.type) {
         case "move_made": {
-            const data = event.data as {
-                from: string;
-                to: string;
-                promotion?: string | null;
-                fen: string;
-            };
-            state.lastMove = {
-                from: data.from,
-                to: data.to,
-                promotion: data.promotion,
-            };
-            state.currentFen = data.fen;
+            const data = event.data as TurnData;
+            state.lastMove = data;
+            state.currentFen = data.currentFen;
             break;
         }
         case "game_status_changed": {
             const data = event.data as {
                 status: string;
-                winner: string | null;
+                winner?: string;
             };
             state.gameStatus = data.status as GameStatus;
             state.winner = data.winner as Winner;
             break;
         }
         case "player_joined": {
-            // Usually no state change needed
             break;
         }
     }
 }
 
-export async function GET(
+export const GET = handleRequest<RequestResponse>(getHandler);
+
+async function getHandler(
     request: NextRequest,
-    { params }: { params: Promise<{ gameId: string }> }
-) {
-    // Get gameId from route parameters
+    { params }: RouteParams
+): Promise<NextResponse<RequestResponse | ErrorResponse>> {
     const { gameId } = await params;
 
     try {
-        // Check authorization
-        const authHeader = request.headers.get("Authorization");
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return NextResponse.json(
-                { error: "Unauthorized: No valid token provided" },
-                { status: 401 }
-            );
-        }
+        const authHeader = isAuthTokenProvided(request);
 
-        // Get and verify token
         const token = authHeader.split(" ")[1];
         const tokenData = verifyPlayerToken(token);
 
@@ -167,7 +148,6 @@ export async function GET(
                 winner: game.winner,
             };
 
-            // Process each missed event to build up the state
             missedEvents.forEach((event) => {
                 processMissedEvent(event, state);
             });
@@ -179,17 +159,7 @@ export async function GET(
             // Get the latest turn information
             const latestTurn = await getLatestTurn(gameId);
 
-            // If we have a move in state from missed events, use that
-            // Otherwise, use the latest turn from the database
-            const lastMove =
-                state.lastMove ||
-                (latestTurn
-                    ? {
-                          from: latestTurn.from,
-                          to: latestTurn.to,
-                          promotion: latestTurn.promotionPiece,
-                      }
-                    : null);
+            const lastMove = state.lastMove || latestTurn;
 
             // Check for checkmate, stalemate, etc. based on current FEN
             const currentChess = new Chess(state.currentFen);
@@ -219,22 +189,21 @@ export async function GET(
                 );
             }
 
-            return NextResponse.json({
+            const response: RequestResponse = {
                 success: true,
                 gameStatus: state.gameStatus,
                 fenPosition: state.currentFen,
-                lastMove,
+                lastMove: lastMove,
                 playerTurn: updatedIsPlayerTurn,
                 checkmate: isCheckmate,
                 draw: isDraw,
                 winner: state.winner,
                 newToken,
                 opponentConnected: true,
-                missedEvents: missedEvents.map((e) => ({
-                    type: e.type,
-                    timestamp: e.timestamp,
-                })),
-            });
+                missedEvents: missedEvents,
+            };
+
+            return NextResponse.json(response);
         }
 
         // Wait for new event using Redis Pub/Sub
@@ -281,43 +250,30 @@ export async function GET(
                 }
 
                 case "move_made": {
-                    // Move was made
-                    const moveData = event.data as {
-                        from: string;
-                        to: string;
-                        promotion?: string;
-                        color: string;
-                        fen: string;
-                    };
+                    const moveData = event.data as TurnData;
 
-                    // Update chess logic with new position
                     const newChess = new Chess(game.currentFen);
                     const newCurrentTurn =
                         newChess.turn() === "w" ? "white" : "black";
 
-                    // Determine if it's player's turn now
                     const newIsPlayerTurn =
                         tokenData.playerRole !== "spectator" &&
                         tokenData.playerColor === newCurrentTurn;
 
-                    // Check for checkmate, stalemate, etc.
                     const isCheckmate = newChess.isCheckmate();
                     const isDraw = newChess.isDraw();
 
-                    // If it's now player's turn, update time in token
                     let newToken;
                     if (
                         newIsPlayerTurn &&
                         tokenData.moveTimeRemaining !== null
                     ) {
-                        // Update both move time and event timestamp
                         newToken = updatePlayerTimeAndTimestamp(
                             token,
                             game.timeControl,
                             event.timestamp
                         );
                     } else {
-                        // Just update event timestamp
                         newToken = updatePlayerTokenTimestamp(
                             token,
                             event.timestamp
@@ -328,11 +284,7 @@ export async function GET(
                         success: true,
                         gameStatus: game.status,
                         fenPosition: game.currentFen,
-                        lastMove: {
-                            from: moveData.from,
-                            to: moveData.to,
-                            promotion: moveData.promotion,
-                        },
+                        lastMove: moveData,
                         playerTurn: newIsPlayerTurn,
                         checkmate: isCheckmate,
                         draw: isDraw,
@@ -354,13 +306,11 @@ export async function GET(
                 }
 
                 case "game_status_changed": {
-                    // Game status changed
                     const statusData = event.data as {
                         status: string;
-                        winner: string | null;
+                        winner?: string;
                     };
 
-                    // Update token with new timestamp
                     const newToken = updatePlayerTokenTimestamp(
                         token,
                         event.timestamp
@@ -388,8 +338,6 @@ export async function GET(
                 }
 
                 default: {
-                    // Unknown event type, return current state
-                    // Update token with new timestamp
                     const newToken = updatePlayerTokenTimestamp(
                         token,
                         event.timestamp

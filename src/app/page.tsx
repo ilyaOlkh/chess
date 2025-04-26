@@ -16,12 +16,12 @@ import { createGame } from "@/services/longPollingService";
 export default function Home() {
     const router = useRouter();
     const [isCreatingGame, setIsCreatingGame] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string>();
 
     const handleCreateOnlineGame = async () => {
         try {
             setIsCreatingGame(true);
-            setError(null);
+            setError(undefined);
 
             // Create a new game
             const response = await createGame();

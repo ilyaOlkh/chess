@@ -1,29 +1,25 @@
 import { PlayerRole } from "@/lib/auth/player-auth";
-import { PlayerColor } from "@/lib/redis/redis-setup";
+import { GameEvent } from "@/lib/redis/redis-pubsub";
+import { PlayerColor, TurnData } from "@/lib/redis/redis-setup";
 import { MoveData } from "@/types/chess-board";
-import { PieceType } from "@/types/chess-game";
-import { Square } from "chess.js";
 
-export interface LongPollResponse {
+export interface RequestResponse {
     success: boolean;
     gameStatus?: string;
     fenPosition?: string;
-    lastMove?: {
-        from: Square;
-        to: Square;
-        promotion?: PieceType;
-    };
+    lastMove?: TurnData;
     error?: string;
     playerTurn?: boolean;
     checkmate?: boolean;
     draw?: boolean;
-    winner?: string | null;
+    winner?: string;
     newToken?: string;
     opponentConnected?: boolean;
     playerRole?: PlayerRole;
     playerColor?: PlayerColor;
     playerId?: string;
     playerToken?: string;
+    missedEvents?: GameEvent[];
 }
 
 const longPollingConstants = {
@@ -32,7 +28,7 @@ const longPollingConstants = {
 };
 
 export interface LongPollOptions {
-    onSuccess: (data: LongPollResponse) => void;
+    onSuccess: (data: RequestResponse) => void;
     onError: (error: Error) => void;
     gameId: string;
     playerToken: string;
@@ -50,7 +46,7 @@ export function startLongPolling({
 }: // pollTimeoutMs = 30000,
 LongPollOptions): { stopPolling: () => void } {
     let isPolling = true;
-    let controller: AbortController | null = null;
+    let controller: AbortController;
 
     const poll = async (): Promise<void> => {
         if (!isPolling) return;
@@ -85,36 +81,29 @@ LongPollOptions): { stopPolling: () => void } {
                 );
             }
 
-            const data: LongPollResponse = await response.json();
+            const data: RequestResponse = await response.json();
 
-            // Check if the game has been completed or aborted
             if (
                 data.gameStatus === "completed" ||
                 data.gameStatus === "aborted"
             ) {
-                // Process this final state update
                 onSuccess(data);
-                // Stop polling after game completion
                 isPolling = false;
                 return;
             }
 
-            // Continue with normal processing
             onSuccess(data);
 
-            // Continue polling
             if (isPolling) {
                 setTimeout(poll, longPollingConstants.retryDelay);
             }
         } catch (error) {
             if (!isPolling) return;
 
-            // Don't report abort errors
             if (error instanceof Error && error.name !== "AbortError") {
                 onError(error);
             }
 
-            // Continue polling even after errors (unless it's an abort)
             if (
                 isPolling &&
                 error instanceof Error &&
@@ -138,14 +127,11 @@ LongPollOptions): { stopPolling: () => void } {
     };
 }
 
-/**
- * Makes a move in the online game
- */
 export async function makeOnlineMove(
     gameId: string,
     playerToken: string,
     moveData: MoveData
-): Promise<LongPollResponse> {
+): Promise<RequestResponse> {
     const response = await fetch(`/api/game/${gameId}/move`, {
         method: "POST",
         headers: {
@@ -173,7 +159,7 @@ export async function makeOnlineMove(
 export async function joinGame(
     gameId: string,
     token?: string
-): Promise<LongPollResponse> {
+): Promise<RequestResponse> {
     const headers: HeadersInit = {
         "Content-Type": "application/json",
     };
@@ -221,9 +207,6 @@ export async function createGame(
     return data;
 }
 
-/**
- * Spectates a game
- */
 export async function spectateGame(
     gameId: string
 ): Promise<{ spectatorToken: string }> {

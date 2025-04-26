@@ -35,10 +35,10 @@ const getMoveType = (flags: string): MoveType => {
     return "normal";
 };
 
-const parseBoard = (chess: Chess): (ChessPiece | null)[][] => {
+const parseBoard = (chess: Chess): (ChessPiece | undefined)[][] => {
     const board = Array(8)
-        .fill(null)
-        .map(() => Array(8).fill(null));
+        .fill(undefined)
+        .map(() => Array(8).fill(undefined));
 
     const chessBoard = chess.board();
 
@@ -69,16 +69,13 @@ const createInitialState = (): ChessGameState => {
         isCheck: chess.isCheck(),
         isCheckmate: chess.isCheckmate(),
         isDraw: chess.isDraw(),
-        selectedPiece: null,
         validMoves: [],
         capturedPieces: {
             w: [],
             b: [],
         },
-        currentMove: null,
         animatingPieces: new Map(),
         fenString: initialFen,
-        pendingPromotion: null,
         fenHistory: [initialFen],
     };
 };
@@ -105,7 +102,7 @@ const chessReducer = (
             const piece = action.payload;
 
             if (!piece || piece.color !== state.currentTurn) {
-                return { ...state, selectedPiece: null, validMoves: [] };
+                return { ...state, selectedPiece: undefined, validMoves: [] };
             }
 
             const position = positionToAlgebraic(piece.position);
@@ -260,7 +257,7 @@ const chessReducer = (
                 isCheck: chess.isCheck(),
                 isCheckmate: chess.isCheckmate(),
                 isDraw: chess.isDraw(),
-                selectedPiece: null,
+                selectedPiece: undefined,
                 validMoves: [],
                 moveHistory: [...state.moveHistory, newMove],
                 capturedPieces,
@@ -290,7 +287,7 @@ const chessReducer = (
             if (!moveDetails) {
                 return {
                     ...state,
-                    pendingPromotion: null,
+                    pendingPromotion: undefined,
                 };
             }
 
@@ -350,13 +347,13 @@ const chessReducer = (
                 isCheck: chess.isCheck(),
                 isCheckmate: chess.isCheckmate(),
                 isDraw: chess.isDraw(),
-                selectedPiece: null,
+                selectedPiece: undefined,
                 validMoves: [],
                 moveHistory: [...state.moveHistory, newMove],
                 capturedPieces,
                 currentMove: newMove,
                 animatingPieces,
-                pendingPromotion: null,
+                pendingPromotion: undefined,
                 fenHistory: [...state.fenHistory, newFen],
             };
         }
@@ -389,7 +386,7 @@ const chessReducer = (
                 isCheck: previousChess.isCheck(),
                 isCheckmate: previousChess.isCheckmate(),
                 isDraw: previousChess.isDraw(),
-                selectedPiece: null,
+                selectedPiece: undefined,
                 validMoves: [],
                 moveHistory: state.moveHistory.slice(0, -1),
                 capturedPieces: {
@@ -412,9 +409,9 @@ const chessReducer = (
                                     : 0)
                     ),
                 },
-                currentMove: null,
+                currentMove: undefined,
                 animatingPieces: new Map(),
-                pendingPromotion: null,
+                pendingPromotion: undefined,
                 fenHistory: previousFenHistory,
             };
         }
@@ -433,13 +430,13 @@ const chessReducer = (
                     isCheck: chess.isCheck(),
                     isCheckmate: chess.isCheckmate(),
                     isDraw: chess.isDraw(),
-                    selectedPiece: null,
+                    selectedPiece: undefined,
                     validMoves: [],
                     moveHistory: [],
                     capturedPieces: getCapturedPieces(chess),
-                    currentMove: null,
+                    currentMove: undefined,
                     animatingPieces: new Map(),
-                    pendingPromotion: null,
+                    pendingPromotion: undefined,
                     fenHistory: [newFen],
                 };
             } catch (error) {
@@ -455,7 +452,7 @@ const chessReducer = (
 
 type ChessContextType = {
     state: ChessGameState;
-    selectPiece: (piece: ChessPiece | null) => void;
+    selectPiece: (piece?: ChessPiece) => void;
     makeMove: (from: Square, to: Square) => { isPawnPromotion: boolean };
     resetGame: () => void;
     undoMove: () => void;
@@ -475,7 +472,7 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
         createInitialState
     );
 
-    const selectPiece = useCallback((piece: ChessPiece | null) => {
+    const selectPiece = useCallback((piece?: ChessPiece) => {
         dispatch({ type: "SELECT_PIECE", payload: piece });
     }, []);
 
@@ -508,7 +505,7 @@ export const ChessProvider: React.FC<{ children: React.ReactNode }> = ({
     }, []);
 
     const cancelPromotion = useCallback(() => {
-        dispatch({ type: "SET_PENDING_PROMOTION", payload: null });
+        dispatch({ type: "SET_PENDING_PROMOTION" });
     }, []);
 
     return (

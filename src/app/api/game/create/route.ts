@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createNewGame } from "@/lib/game/chess-game-service";
+import { createNewGame } from "@server/game/chess-game-service";
 
 export async function POST(request: NextRequest) {
     try {
-        // Парсим тело запроса
         const body = await request.json().catch(() => ({}));
-        const timeControl = body.timeControl || 300; // По умолчанию 5 минут
+        const timeControl = body.timeControl || 300;
 
-        // Создаем новую игру
         const result = await createNewGame(timeControl);
 
         if (!result.gameId || !result.playerToken) {
@@ -17,7 +15,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Возвращаем идентификатор игры, токен игрока и ID игрока
         return NextResponse.json({
             success: true,
             gameId: result.gameId,

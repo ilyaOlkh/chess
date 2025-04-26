@@ -43,31 +43,31 @@ export interface ChessMove {
 }
 
 export interface ChessGameState {
-    board: (ChessPiece | null)[][];
+    board: (ChessPiece | undefined)[][];
     currentTurn: PieceColor;
     moveHistory: ChessMove[];
     isCheck: boolean;
     isCheckmate: boolean;
     isDraw: boolean;
-    selectedPiece: ChessPiece | null;
+    selectedPiece?: ChessPiece;
     validMoves: ValidMove[];
     capturedPieces: {
         w: ChessPiece[];
         b: ChessPiece[];
     };
-    currentMove: ChessMove | null;
+    currentMove?: ChessMove;
     animatingPieces: Map<string, boolean>;
     fenString: string;
-    pendingPromotion: PendingPromotion | null;
+    pendingPromotion?: PendingPromotion;
     fenHistory: string[]; // История FEN-строк для отмены ходов
 }
 
 export type ChessAction =
-    | { type: "SELECT_PIECE"; payload: ChessPiece | null }
+    | { type: "SELECT_PIECE"; payload?: ChessPiece }
     | { type: "MAKE_MOVE"; payload: { from: Square; to: Square } }
     | { type: "ANIMATION_COMPLETE"; payload: string }
     | { type: "RESET_GAME" }
     | { type: "UNDO_MOVE" }
     | { type: "SET_POSITION"; payload: string }
-    | { type: "SET_PENDING_PROMOTION"; payload: PendingPromotion | null }
+    | { type: "SET_PENDING_PROMOTION"; payload?: PendingPromotion }
     | { type: "COMPLETE_PROMOTION"; payload: { promotion: PieceType } };
