@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { PlayerColor } from "../redis/redis-setup";
+import { getPlayerRemainingTimes, PlayerColor } from "../redis/redis-setup";
 import { PlayerRole, playerRoles } from "@/constants/online-game";
 
 export interface PlayerTokenPayload {
@@ -7,22 +7,25 @@ export interface PlayerTokenPayload {
     playerId: string;
     playerColor?: PlayerColor;
     playerRole: PlayerRole;
-    issuedAt: number; // Unix timestamp
-    moveTimeRemaining?: number; // In seconds, null for spectators
-    lastEventTimestamp?: number; // Timestamp of the last processed event
+    lastEventTimestamp?: number;
     iat?: number;
     exp?: number;
+    playerTimes: {
+        firstPlayer: {
+            timeRemaining: number;
+            lastMoveTimestamp: number;
+        };
+        secondPlayer: {
+            timeRemaining: number;
+            lastMoveTimestamp: number;
+        };
+    };
 }
 
-// Get the secret from environment variables
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-this";
 
-// Token expiration settings (long enough for a chess game)
 const TOKEN_EXPIRATION = "12h";
 
-/**
- * Creates a JWT token for a player
- */
 export function createPlayerToken(payload: PlayerTokenPayload) {
     if (!payload.exp)
         return jwt.sign(payload, JWT_SECRET, {
@@ -33,9 +36,6 @@ export function createPlayerToken(payload: PlayerTokenPayload) {
     }
 }
 
-/**
- * Verifies and decodes a player token
- */
 export function verifyPlayerToken(token: string) {
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as PlayerTokenPayload;
@@ -45,84 +45,60 @@ export function verifyPlayerToken(token: string) {
     }
 }
 
-export function updatePlayerMoveTime(
-    token: string,
-    timeRemaining: number
-): string {
-    const payload = verifyPlayerToken(token);
-
-    if (!payload) {
+export async function updatePlayerTokenTimestamp(
+    tokenData: PlayerTokenPayload,
+    timestamp: number
+) {
+    if (!tokenData) {
         throw new Error("Invalid token");
     }
 
+    const playerTimes = (await getPlayerRemainingTimes(tokenData.gameId))!;
+
     const newPayload: PlayerTokenPayload = {
-        ...payload,
-        moveTimeRemaining: timeRemaining,
-        issuedAt: Math.floor(Date.now() / 1000),
+        ...tokenData,
+        lastEventTimestamp: timestamp,
+        playerTimes: playerTimes,
     };
 
     return createPlayerToken(newPayload);
 }
 
-/**
- * Updates the player token with a new last event timestamp
- */
-export function updatePlayerTokenTimestamp(
+export async function updatePlayerTimeAndTimestamp(
     tokenData: PlayerTokenPayload,
     timestamp: number
-): string {
+) {
     if (!tokenData) {
         throw new Error("Invalid token");
     }
 
-    // Create a new token with updated timestamp
+    const playerTimes = (await getPlayerRemainingTimes(tokenData.gameId))!;
+
     const newPayload: PlayerTokenPayload = {
         ...tokenData,
         lastEventTimestamp: timestamp,
-    };
-
-    return createPlayerToken(newPayload);
-}
-
-/**
- * Updates both move time and last event timestamp in a player's token
- */
-export function updatePlayerTimeAndTimestamp(
-    tokenData: PlayerTokenPayload,
-    timeRemaining: number,
-    timestamp: number
-): string {
-    if (!tokenData) {
-        throw new Error("Invalid token");
-    }
-
-    // Create a new token with updated time and timestamp
-    const newPayload: PlayerTokenPayload = {
-        ...tokenData,
-        moveTimeRemaining: timeRemaining,
-        issuedAt: Math.floor(Date.now() / 1000),
-        lastEventTimestamp: timestamp,
+        playerTimes: playerTimes,
     };
 
     return createPlayerToken(newPayload);
 }
 
 export function hasMoveTimeExpired(tokenData: PlayerTokenPayload): boolean {
-    if (!tokenData?.moveTimeRemaining) {
-        return false;
-    }
+    if (tokenData.playerColor !== undefined) {
+        const playerTimeData =
+            tokenData.playerColor === "white"
+                ? tokenData.playerTimes.firstPlayer
+                : tokenData.playerTimes.secondPlayer;
 
-    const secondsElapsed = Math.floor(Date.now() / 1000) - tokenData.issuedAt;
-    return secondsElapsed > tokenData.moveTimeRemaining;
+        return playerTimeData.timeRemaining <= 0;
+    }
+    return false;
 }
 
-/**
- * Handles player joining a game
- */
 export function generatePlayerJoinToken(
     gameId: string,
     isFirstPlayer: boolean,
-    timeControl: number,
+    moveTimeRemaining: number,
     firstPlayerColor: PlayerColor,
     playerId: string
 ): string {
@@ -134,14 +110,24 @@ export function generatePlayerJoinToken(
         ? "black"
         : "white";
 
+    const currentTimestamp = Date.now();
+
     const payload: PlayerTokenPayload = {
         gameId,
         playerId,
         playerColor,
         playerRole,
-        issuedAt: Math.floor(Date.now() / 1000),
-        moveTimeRemaining: timeControl,
-        lastEventTimestamp: Date.now(),
+        lastEventTimestamp: currentTimestamp,
+        playerTimes: {
+            firstPlayer: {
+                timeRemaining: moveTimeRemaining,
+                lastMoveTimestamp: currentTimestamp,
+            },
+            secondPlayer: {
+                timeRemaining: moveTimeRemaining,
+                lastMoveTimestamp: currentTimestamp,
+            },
+        },
     };
 
     return createPlayerToken(payload);
@@ -149,13 +135,23 @@ export function generatePlayerJoinToken(
 
 export function generateSpectatorToken(gameId: string): string {
     const spectatorId = crypto.randomUUID();
+    const currentTimestamp = Date.now();
 
     const payload: PlayerTokenPayload = {
         gameId,
         playerId: spectatorId,
         playerRole: playerRoles.spectator,
-        issuedAt: Math.floor(Date.now() / 1000),
-        lastEventTimestamp: Date.now(),
+        lastEventTimestamp: currentTimestamp,
+        playerTimes: {
+            firstPlayer: {
+                timeRemaining: 0,
+                lastMoveTimestamp: currentTimestamp,
+            },
+            secondPlayer: {
+                timeRemaining: 0,
+                lastMoveTimestamp: currentTimestamp,
+            },
+        },
     };
 
     return createPlayerToken(payload);

@@ -10,6 +10,9 @@ import {
 import { useChessContext } from "@/context/ChessContext";
 import { PlayerRole, playerRoles } from "@/constants/online-game";
 import { PlayerColor } from "@/constants/chess-game";
+import { decodeJwtToken } from "@/utilities/jwt-utils";
+import { PlayerTokenPayload } from "@/lib/auth/player-auth";
+import { PlayerTimeData } from "@/lib/redis/redis-setup";
 
 export type GameStatus =
     | "connecting"
@@ -36,6 +39,7 @@ export interface OnlineGameState {
     isDraw: boolean;
     winner?: string;
     playerId?: string;
+    playerTimes?: PlayerTimeData;
 }
 
 export interface UseOnlineGameProps {
@@ -59,16 +63,12 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
         isDraw: false,
     });
 
-    // JWT токен для аутентификации
     const [playerToken, setPlayerToken] = useState<string>();
 
-    // Флаг инициализации
     const [initialized, setInitialized] = useState(false);
 
-    // Обновление состояния игры на основе данных от long polling
     const handleGameUpdate = useCallback(
         (data: RequestResponse) => {
-            // Извлечь текущий ход из FEN если доступен
             let currentTurn: PlayerColor = "white";
             if (data.fenPosition) {
                 const fenParts = data.fenPosition.split(" ");
@@ -89,6 +89,10 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                 }
             }
 
+            const tokenData = decodeJwtToken<PlayerTokenPayload>(
+                data.newToken!
+            );
+
             setGameState((prev) => ({
                 ...prev,
                 status: (data.gameStatus as GameStatus) || prev.status,
@@ -101,9 +105,9 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                 isCheckmate: data.checkmate || false,
                 isDraw: data.draw || false,
                 winner: data.winner,
+                playerTimes: tokenData.playerTimes,
             }));
 
-            // Если получен новый токен, обновить его
             if (data.newToken) {
                 setPlayerToken(data.newToken);
                 localStorage.setItem(`chess_token_${gameId}`, data.newToken);
@@ -112,13 +116,11 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
         [gameId, makeIntermalMove, promotePawn, gameState.playerRole]
     );
 
-    // Инициализация подключения к игре
     useEffect(() => {
         if (!gameId || initialized) return;
 
         const initializeGame = async () => {
             try {
-                // Проверяем, есть ли сохраненный токен для этой игры
                 const savedToken = localStorage.getItem(
                     `chess_token_${gameId}`
                 );
@@ -139,6 +141,10 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                         response.playerToken
                     );
 
+                    const tokenData = decodeJwtToken<PlayerTokenPayload>(
+                        response.playerToken
+                    );
+
                     setGameState((prev) => ({
                         ...prev,
                         playerRole:
@@ -149,6 +155,7 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                         status:
                             (response.gameStatus as GameStatus) || "waiting",
                         opponentConnected: response.opponentConnected || false,
+                        playerTimes: tokenData.playerTimes,
                     }));
                 }
 
@@ -206,7 +213,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
         };
     }, [gameId, playerToken, initialized, handleGameUpdate]);
 
-    // Функция для выполнения хода
     const makeMove = useCallback(
         async (moveData: MoveData) => {
             if (!playerToken || !gameState.isPlayerTurn) {
@@ -225,7 +231,6 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                     throw new Error(response.error || "Failed to make move");
                 }
 
-                // Обновляем состояние на основе ответа
                 handleGameUpdate({ ...response, playerTurn: false });
                 return true;
             } catch (error) {

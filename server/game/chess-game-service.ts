@@ -10,13 +10,14 @@ import {
     updateGameFen,
     createTurn,
     getWaitingGames,
+    updatePlayerTimeAfterMove,
 } from "@/lib/redis/redis-setup";
 import {
     generatePlayerJoinToken,
     verifyPlayerToken,
-    updatePlayerMoveTime,
     hasMoveTimeExpired,
     PlayerTokenPayload,
+    createPlayerToken,
 } from "@/lib/auth/player-auth";
 import { PieceType } from "@/types/chess-game";
 import { playerColors } from "@/constants/chess-game";
@@ -79,9 +80,7 @@ export async function makeMove(
         return { success: false, error: "Invalid token" };
     }
 
-    // Check if move time has expired
     if (hasMoveTimeExpired(tokenData)) {
-        // Game over due to time expiration
         const loserColor = tokenData.playerColor;
         const winnerColor = loserColor === "white" ? "black" : "white";
 
@@ -144,6 +143,12 @@ export async function makeMove(
         const newFen = chess.fen();
         await updateGameFen(gameId, newFen);
 
+        // Обновляем время игрока после хода
+        await updatePlayerTimeAfterMove(
+            gameId,
+            currentTurn === "white" ? "black" : "white"
+        );
+
         const turnData: TurnData = {
             id: "",
             gameId,
@@ -157,12 +162,14 @@ export async function makeMove(
 
         await createTurn(turnData);
 
+        const newToken = updatePlayerMoveTime(token);
+
         return {
             success: true,
             newFen,
             isGameOver: gameOver,
             gameResult,
-            newToken: updatePlayerMoveTime(token, game.timeControl + 1), // +1 second buffer
+            newToken: newToken,
         };
     } catch (error) {
         return {
@@ -187,4 +194,46 @@ export function isPlayerTurn(
         tokenData?.playerRole !== playerRoles.spectator &&
         tokenData?.playerColor === currentTurn
     );
+}
+
+export function updatePlayerMoveTime(token: string): string {
+    const payload = verifyPlayerToken(token);
+
+    if (!payload) {
+        throw new Error("Invalid token");
+    }
+
+    if (!payload.playerColor) {
+        throw new Error("You cannot update time for a spectator token");
+    }
+
+    const newPayload: PlayerTokenPayload = {
+        ...payload,
+        playerTimes: {
+            ...payload.playerTimes,
+        },
+    };
+
+    const currentTimestamp = Date.now();
+
+    if (payload.playerColor === "white") {
+        const firstPlayer = newPayload.playerTimes.firstPlayer;
+        const elapsedTime = currentTimestamp - firstPlayer.lastMoveTimestamp;
+        firstPlayer.timeRemaining = Math.max(
+            0,
+            firstPlayer.timeRemaining - elapsedTime
+        );
+    } else {
+        const secondPlayer = newPayload.playerTimes.secondPlayer;
+        const elapsedTime = currentTimestamp - secondPlayer.lastMoveTimestamp;
+        secondPlayer.timeRemaining = Math.max(
+            0,
+            secondPlayer.timeRemaining - elapsedTime
+        );
+    }
+
+    newPayload.playerTimes.firstPlayer.lastMoveTimestamp = currentTimestamp;
+    newPayload.playerTimes.secondPlayer.lastMoveTimestamp = currentTimestamp;
+
+    return createPlayerToken(newPayload);
 }

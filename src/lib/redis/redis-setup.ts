@@ -48,7 +48,21 @@ const keyStructure = {
     activeGames: "games:active",
     waitingGames: "games:waiting",
     completedGames: "games:completed",
+    // Добавляем ключи для хранения времени игроков
+    gameTime: (gameId: string) => `game:${gameId}:time`,
 };
+
+// Интерфейс для данных о времени игроков
+export interface PlayerTimeData {
+    firstPlayer: {
+        timeRemaining: number;
+        lastMoveTimestamp: number;
+    };
+    secondPlayer: {
+        timeRemaining: number;
+        lastMoveTimestamp: number;
+    };
+}
 
 export async function createGame(gameData: GameData): Promise<string> {
     const gameId = crypto.randomUUID();
@@ -292,4 +306,85 @@ export async function cleanupOldGames(
     }
 
     return removedCount;
+}
+
+export async function updatePlayerTimes(
+    gameId: string,
+    timeData: PlayerTimeData
+): Promise<void> {
+    await redis.hset(
+        keyStructure.gameTime(gameId),
+        timeData as unknown as Record<string, unknown>
+    );
+}
+
+export async function getPlayerRemainingTimes(gameId: string) {
+    const timeData = (await redis.hgetall(
+        keyStructure.gameTime(gameId)
+    )) as unknown as PlayerTimeData;
+
+    if (!timeData || Object.keys(timeData).length === 0) {
+        const game = await getGame(gameId);
+        if (game) {
+            const currentTime = Date.now();
+            const initialTime = game.timeControl;
+
+            const newTimeData: PlayerTimeData = {
+                firstPlayer: {
+                    timeRemaining: initialTime,
+                    lastMoveTimestamp: currentTime,
+                },
+                secondPlayer: {
+                    timeRemaining: initialTime,
+                    lastMoveTimestamp: currentTime,
+                },
+            };
+
+            await updatePlayerTimes(gameId, newTimeData);
+            return newTimeData;
+        }
+        return;
+    }
+
+    return {
+        firstPlayer: {
+            timeRemaining: timeData.firstPlayer.timeRemaining,
+            lastMoveTimestamp: timeData.firstPlayer.lastMoveTimestamp,
+        },
+        secondPlayer: {
+            timeRemaining: timeData.secondPlayer.timeRemaining,
+            lastMoveTimestamp: timeData.secondPlayer.lastMoveTimestamp,
+        },
+    };
+}
+
+export async function updatePlayerTimeAfterMove(
+    gameId: string,
+    color: PlayerColor
+) {
+    const timeData = await getPlayerRemainingTimes(gameId);
+    if (!timeData) return;
+
+    const currentTime = Date.now();
+
+    if (color === "white") {
+        const elapsedTime =
+            currentTime - timeData.firstPlayer.lastMoveTimestamp;
+        timeData.firstPlayer.timeRemaining = Math.max(
+            0,
+            timeData.firstPlayer.timeRemaining - elapsedTime
+        );
+        timeData.firstPlayer.lastMoveTimestamp = currentTime;
+    } else {
+        const elapsedTime =
+            currentTime - timeData.secondPlayer.lastMoveTimestamp;
+        timeData.secondPlayer.timeRemaining = Math.max(
+            0,
+            timeData.secondPlayer.timeRemaining - elapsedTime
+        );
+        timeData.secondPlayer.lastMoveTimestamp = currentTime;
+    }
+
+    await updatePlayerTimes(gameId, timeData);
+    return timeData;
 }

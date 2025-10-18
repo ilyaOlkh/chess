@@ -12,6 +12,7 @@ import {
     Winner,
     TurnData,
     GameData,
+    getPlayerRemainingTimes,
 } from "@/lib/redis/redis-setup";
 import {
     waitForGameEvent,
@@ -132,14 +133,13 @@ async function getHandler(
 
         let newToken;
 
-        if (updatedIsPlayerTurn && tokenData.moveTimeRemaining !== null) {
-            newToken = updatePlayerTimeAndTimestamp(
+        if (updatedIsPlayerTurn) {
+            newToken = await updatePlayerTimeAndTimestamp(
                 tokenData,
-                game.timeControl,
                 missedEvents[missedEvents.length - 1].timestamp
             );
         } else {
-            newToken = updatePlayerTokenTimestamp(
+            newToken = await updatePlayerTokenTimestamp(
                 tokenData,
                 missedEvents[missedEvents.length - 1].timestamp
             );
@@ -178,19 +178,19 @@ async function getHandler(
 
         switch (event.type) {
             case gameEventTypes.player_joined: {
-                return processPlayerJoinedEvent(processEventData);
+                return await processPlayerJoinedEvent(processEventData);
             }
 
             case gameEventTypes.move_made: {
-                return processMoveMadeEvent(processEventData);
+                return await processMoveMadeEvent(processEventData);
             }
 
             case gameEventTypes.game_status_changed: {
-                return processGameStatusChangedEvent(processEventData);
+                return await processGameStatusChangedEvent(processEventData);
             }
 
             default: {
-                const newToken = updatePlayerTokenTimestamp(
+                const newToken = await updatePlayerTokenTimestamp(
                     tokenData,
                     event.timestamp
                 );
@@ -222,14 +222,16 @@ async function getHandler(
     });
 }
 
-function processPlayerJoinedEvent(processEventData: ProcessEventData) {
+async function processPlayerJoinedEvent(processEventData: ProcessEventData) {
     const newOpponentConnected =
         processEventData.tokenData.playerRole === playerRoles.first;
 
-    const newToken = updatePlayerTokenTimestamp(
+    const newToken = await updatePlayerTokenTimestamp(
         processEventData.tokenData,
         processEventData.event.timestamp
     );
+
+    const playerTimes = await getPlayerRemainingTimes(processEventData.game.id);
 
     return NextResponse.json({
         success: true,
@@ -241,6 +243,7 @@ function processPlayerJoinedEvent(processEventData: ProcessEventData) {
             processEventData.tokenData
         ),
         newToken,
+        playerTimes: playerTimes,
         events: [
             {
                 type: processEventData.event.type,
@@ -251,7 +254,7 @@ function processPlayerJoinedEvent(processEventData: ProcessEventData) {
     });
 }
 
-function processMoveMadeEvent(processEventData: ProcessEventData) {
+async function processMoveMadeEvent(processEventData: ProcessEventData) {
     const moveData = processEventData.event.data as TurnData;
     const newChess = new Chess(processEventData.game.currentFen);
     const newCurrentTurn = newChess.turn() === "w" ? "white" : "black";
@@ -263,18 +266,19 @@ function processMoveMadeEvent(processEventData: ProcessEventData) {
 
     let newToken;
 
-    if (newIsPlayerTurn && !!processEventData.tokenData.moveTimeRemaining) {
-        newToken = updatePlayerTimeAndTimestamp(
+    if (newIsPlayerTurn) {
+        newToken = await updatePlayerTimeAndTimestamp(
             processEventData.tokenData,
-            processEventData.game.timeControl,
             processEventData.event.timestamp
         );
     } else {
-        newToken = updatePlayerTokenTimestamp(
+        newToken = await updatePlayerTokenTimestamp(
             processEventData.tokenData,
             processEventData.event.timestamp
         );
     }
+
+    const playerTimes = await getPlayerRemainingTimes(processEventData.game.id);
 
     return NextResponse.json({
         success: true,
@@ -286,6 +290,7 @@ function processMoveMadeEvent(processEventData: ProcessEventData) {
         draw: isDraw,
         newToken,
         opponentConnected: true,
+        playerTimes: playerTimes,
         events: [
             {
                 type: processEventData.event.type,
@@ -301,15 +306,19 @@ function processMoveMadeEvent(processEventData: ProcessEventData) {
     });
 }
 
-function processGameStatusChangedEvent(processEventData: ProcessEventData) {
+async function processGameStatusChangedEvent(
+    processEventData: ProcessEventData
+) {
     const statusData = processEventData.event.data as {
         status: string;
         winner?: string;
     };
-    const newToken = updatePlayerTokenTimestamp(
+    const newToken = await updatePlayerTokenTimestamp(
         processEventData.tokenData,
         processEventData.event.timestamp
     );
+
+    const playerTimes = await getPlayerRemainingTimes(processEventData.game.id);
 
     return NextResponse.json({
         success: true,
@@ -322,6 +331,7 @@ function processGameStatusChangedEvent(processEventData: ProcessEventData) {
         winner: statusData.winner,
         opponentConnected: true,
         newToken,
+        playerTimes: playerTimes,
         events: [
             {
                 type: processEventData.event.type,
