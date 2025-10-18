@@ -4,7 +4,7 @@ import { createNewGame } from "@server/game/chess-game-service";
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json().catch(() => ({}));
-        const timeControl = body.timeControl || 30000;
+        const timeControl = body.timeControl || 300000;
 
         const result = await createNewGame(timeControl);
 

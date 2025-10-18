@@ -43,8 +43,7 @@ export function startLongPolling({
     onError,
     gameId,
     playerToken,
-}: // pollTimeoutMs = 30000,
-LongPollOptions): { stopPolling: () => void } {
+}: LongPollOptions): { stopPolling: () => void } {
     let isPolling = true;
     let controller: AbortController;
 
@@ -184,11 +183,8 @@ export async function joinGame(
     return data;
 }
 
-/**
- * Creates a new game
- */
 export async function createGame(
-    timeControl: number = 300
+    timeControl: number = 300000
 ): Promise<{ gameId: string; playerToken: string; playerId: string }> {
     const response = await fetch("/api/game/create", {
         method: "POST",

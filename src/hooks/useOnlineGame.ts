@@ -88,9 +88,9 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
                     promotePawn(lastMove.promotion);
                 }
             }
-
+            console.log(data.newToken ?? data.playerToken);
             const tokenData = decodeJwtToken<PlayerTokenPayload>(
-                data.newToken!
+                data.newToken ?? data.playerToken!
             );
 
             setGameState((prev) => ({
@@ -250,7 +250,7 @@ export function useOnlineGame({ gameId }: UseOnlineGameProps) {
     );
 
     // Функция для создания новой игры
-    const createNewGame = useCallback(async (timeControl: number = 300) => {
+    const createNewGame = useCallback(async (timeControl: number = 300000) => {
         try {
             const response = await createGame(timeControl);
 

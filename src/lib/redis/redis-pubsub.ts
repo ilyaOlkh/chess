@@ -127,7 +127,7 @@ export function subscribeToGameEvents(
 
 export function waitForGameEvent(
     gameId: string,
-    timeoutMs: number = 30000
+    timeoutMs: number = 300000
 ): Promise<GameEvent | undefined> {
     return new Promise((resolve) => {
         const timeoutId = setTimeout(() => {

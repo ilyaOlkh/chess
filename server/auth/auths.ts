@@ -27,3 +27,11 @@ export function isGameIdValid(request: NextRequest, gameId: string) {
 
     return tokenData;
 }
+
+export function getToken(request: NextRequest) {
+    const authHeader = isAuthTokenProvided(request);
+
+    const token = authHeader.split(" ")[1];
+
+    return token;
+}

@@ -20,7 +20,7 @@ import {
     GameEvent,
 } from "@/lib/redis/redis-pubsub";
 import { Chess } from "chess.js";
-import { isGameIdValid } from "@server/auth/auths";
+import { getToken, isGameIdValid } from "@server/auth/auths";
 import { handleRequest, RouteParams } from "@server/api/handle-request";
 import { RequestResponse } from "@/services/longPollingService";
 import { createError, ErrorResponse } from "@server/response/error";
@@ -215,6 +215,7 @@ async function getHandler(
 
     return NextResponse.json({
         success: true,
+        playerToken: getToken(request),
         gameStatus: game.status,
         fenPosition: game.currentFen,
         playerTurn: isPlayerTurn(game.currentFen, tokenData),

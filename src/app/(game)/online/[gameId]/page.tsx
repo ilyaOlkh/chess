@@ -16,6 +16,7 @@ import { MoveData } from "@/types/chess-board";
 import { onlineGameText, playerRoles } from "@/constants/online-game";
 import { useCurrentUrl } from "@/hooks/useCurrentUrl";
 import { useOnlineGame } from "@/hooks/useOnlineGame";
+import ChessTimers from "@/components/chess/timer/ChessTimers";
 
 export default function OnlineGame({
     params,
@@ -161,6 +162,17 @@ export default function OnlineGame({
             </Dialog>
 
             <div className="h-full">
+                {gameState.playerTimes && (
+                    <div className="mb-4">
+                        <ChessTimers 
+                            playerTimes={gameState.playerTimes}
+                            currentTurn={gameState.currentTurn}
+                            playerColor={gameState.playerColor}
+                            className="bg-white shadow-md p-3 rounded-md"
+                        />
+                    </div>
+                )}
+                
                 <ChessBoard
                     readOnly={isReadOnly}
                     onTurn={handleMove}
